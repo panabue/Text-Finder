@@ -1,0 +1,875 @@
+pyhgf: A neural network library for predictive
+coding
+Nicolas Legrand1,*, Lilian Weber2, Peter Thestrup Waade1, Anna Hedvig Møller Daugaard1,
+Mojtaba Khodadadi3, Nace Mikuˇs1,4, Chris Mathys1
+1 - Interacting Mind Center, Aarhus University, Denmark
+2 - Department of Psychiatry, University of Oxford, United Kingdom
+3 - Internazionale Superiore di Studi Avanzati (SISSA), Trieste, Italy
+4 - Department of Cognition, Emotion, and Methods in Psychology, Faculty of
+Psychology, University of Vienna, Austria
+* nicolas.legrand@cas.au.dk
+Abstract
+Bayesian models of cognition have gained considerable traction in computational neuroscience and
+psychiatry. Their scopes are now expected to expand rapidly to artificial intelligence, providing
+general inference frameworks to support embodied, adaptable, and energy-efficient autonomous
+agents. A central theory in this domain is predictive coding, which posits that learning and
+behaviour are driven by hierarchical probabilistic inferences about the causes of sensory inputs.
+Biological realism constrains these networks to rely on simple local computations in the form of
+precision-weighted predictions and prediction errors. This can make this framework highly efficient,
+but its implementation comes with unique challenges on the software development side. Embedding
+such models in standard neural network libraries often becomes limiting, as these libraries’
+compilation and differentiation backends can force a conceptual separation between optimization
+algorithms and the systems being optimized. This critically departs from other biological principles
+such as self-monitoring, self-organisation, cellular growth and functional plasticity. In this paper,
+we introduce pyhgf: a Python package backed by JAX and Rust for creating, manipulating and
+sampling dynamic networks for predictive coding. We improve over other frameworks by enclosing
+the network components as transparent, modular and malleable variables in the message-passing
+steps.
+The resulting graphs can implement arbitrary computational complexities as beliefs
+propagation. But the transparency of core variables can also translate into inference processes
+that leverage self-organisation principles, and express structure learning, meta-learning or causal
+discovery as the consequence of network structural adaptation to surprising inputs. The main
+functions of the library are differentiable and seamlessly integrate into sampling or optimization
+workflows. Additionally, we offer generalized Bayesian filtering and the Hierarchical Gaussian
+Filter as key examples of dynamic networks implemented in our library. The source code, tutori-
+als and documentation are hosted under the main repository at https://github.com/ilabcode/pyhgf.
+keywords: predictive coding, Hierarchical Gaussian Filter, computational psychiatry, Bayesian
+networks, neural networks, reinforcement learning
+1/21
+arXiv:2410.09206v1  [cs.NE]  11 Oct 2024
+1
+Introduction
+Bayesian models of cognition describe perception and behaviours as probabilistic inferences over
+the cause of sensory inputs (Ji & Kording, 2023). Modelling these processes at scale to infer
+computational parameters from human behaviours (Friston, 2022; Huys et al., 2016; Sandhu
+et al., 2023), or to implement them into artificial agents (Da Costa et al., 2022; Mathys & Weber,
+2020), is currently a challenge that brings together computational neuroscience and artificial
+intelligence. However, when considering living organisms the complexity of models increases
+and inference becomes especially challenging. While certain inferential processes can sometimes
+be straightforwardly described and implemented using closed-form solutions, the intractability
+increases rapidly with models that incorporate multiple information streams, continuous inputs,
+or hierarchical dependencies common in biological systems. Predictive coding (Friston, 2005; Rao
+& Ballard, 1999) has posited that such complex generative probabilistic models are biologically
+implemented as hierarchical networks of nodes (i.e. neurons or populations of neurons) that
+perform simple computations such as message-passing, error signalling and belief propagation in
+interaction with other proximal units in the hierarchy (Friston, 2008; Mikulasch et al., 2023). This
+mechanism could represent a simpler, faster and energy-efficient alternative to other optimization
+methods such as backpropagation (Rumelhart et al., 1986), which is commonly used by artificial
+neural networks (Millidge, Salvatori, et al., 2022; Ororbia & Kifer, 2022), or MCMC sampling
+(Betancourt, 2017) in the case of Bayesian inference.
+One limiting factor for the wider application of predictive coding neural networks to more
+complex probabilistic models is the absence of easily accessible open-source toolboxes compatible
+with modern probabilistic programming and neural network libraries. It is therefore critical for
+the field to develop a framework that would facilitate the implementation of predictive coding
+models in a manner analogous to how TensorFlow (Mart´ın Abadi et al., 2015) and PyTorch
+(Paszke et al., 2019) have supported the development of conventional neural networks over
+the past decade. However, this requirement comes with technical challenges that are far from
+trivial on the software development side. This becomes especially apparent when we consider
+the deep divergence between the models that standard neural network libraries are tailored to
+develop and the dynamic and flexible nature of the models that computational neuroscience
+and computational psychiatry seek to develop. Biological organisms can implement learning
+and flexible behaviours not only by adjusting the inner representation of some quantities but
+also by leveraging self-monitoring, self-organisation, cellular growth and functional plasticity.
+Even abstracting from the specific optimisation algorithm or inference methods that we aim to
+apply, few of these features could be implemented in classical deep learning libraries. First, those
+libraries need to compile to low-level programming languages while maintaining possibilities for
+automatic differentiation. This often comes at the cost of a restriction of dynamic manipulation
+of inner variables at execution time. For example, conventional neural networks rely heavily on
+linear algebra functionalities that will require static matrix shapes, which has been a limiting
+factor for graph neural networks for example (see however how (Fey & Lenssen, 2019) and
+(Godwin* et al., 2020) circumvent parts of this problem). Secondly, these frameworks tend to
+disentangle the optimisation process from the optimized system. While the network is defined
+through a set of variables only partially transparent, tuning the network relies on the execution
+of scripts whose steps are hidden from the network, preventing it from reasoning about inference
+itself. It is therefore crucial for predictive coding, and to adhere to biological realism, that
+2/21
+self-monitoring and self-organisation principles could be instantiated more easily.
+The second important factor for a broader application of such networks to reinforcement
+learning studies and computational psychiatry, in particular, is the possibility to ”observe the
+observer” (Daunizeau et al., 2010) and infer parameters distributions of implied networks from
+observed decisions and behaviours. This implies that the framework should expose the resulting
+networks to optimization and sampling packages for inference on large datasets, for example
+for multilevel experimental designs like repeated measures or group comparisons. Performing
+inference over a set of parameters to inform learning profiles from behaviours requires another
+inversion of the model and the use of inference techniques like Hamiltonian MCMC sampling
+(Betancourt, 2017), which require automatic differentiation of the likelihood function, which is
+not possible out-of-the-box in several programming languages.
+Finally, one critical component that goes beyond the concrete implementation and flexibility
+of such networks is the availability of validated methods and models that can be deployed and
+adapted into experimental applications. Predictive coding frameworks are available in many
+flavours (Millidge, Seth, & Buckley, 2022) and there is a need for robust implementation of those
+frameworks so they are easily accessible to non-expert users. The Hierarchical Gaussian filter
+(HGF) (Mathys, 2011; Mathys et al., 2014) is a popular inversion scheme for predictive coding-
+inspired models. Over the past decade, it has been widely adopted in computational psychiatry
+and reinforcement learning to emulate Bayesian belief updating in agents that are facing changing
+environments. In this framework, the networks encode the agent’s probabilistic inference about
+latent states of the environment, which are updated in real time by new observations. Through
+encapsulating a hierarchy of Gaussian probability densities, this framework is well-designed
+to model how belief expectations and precisions are propagated in the graph and affect value
+updating (Sandhu et al., 2023). Many complex cognitive phenomena (e.g. hallucinations and
+delusions) and psychiatric conditions (e.g. anxiety, autism, schizophrenia), can be efficiently
+described this way through altered uncertainty or precision processing at various levels of the
+hierarchy (Corlett et al., 2019; Lawson et al., 2017; Powers et al., 2017; Reed et al., 2020).
+So far, the popularity of the HGF in computational neuroscience has been accelerated by the
+availability of a Matlab toolbox (Fr¨assle et al., 2021), together with its documentation and a
+forum for community support (https://github.com/translationalneuromodeling/tapas). This
+tool implements the core components of the framework for experimental neuroscience (i.e. the
+two-level and three-level binary and continuous HGF, along with several variations in response
+functions). However, generalisation of the model to arbitrarily sized networks is not provided
+and the programming language makes it difficult to interface with other Bayesian modelling and
+neural networks tools.
+In this paper, we introduce pyhgf, a neural network library for creating, manipulating and
+sampling dynamic neural networks for predictive coding. Here, each local computation is an
+in-place function operating on the network itself, defined by its attributes, edges, transformations
+and propagation dynamics.
+All network components are modular and transparent during
+propagation, which means that they can be part of the inference process. It natively supports
+the implementation of the generalized Hierarchical Gaussian Filter (Weber et al., 2023), a fully
+nodalized neural network structure where belief nodes can be flexibly added or removed without
+any additional derivations. This step considerably extends the complexity of the networks
+that are supported without requiring additional work from the user and only involves local
+computations of prediction, prediction error and posterior updates, as per predictive coding
+3/21
+standards. The toolbox is written on top of JAX (Bradbury et al., 2018), an XLA and autograd
+tensor library for Python that supports parallelisation on GPUs and TPUs, and Rust (Matsakis
+& Klock, 2014), a general-purpose programming language designed for performance, safety,
+and concurrency. The user can decide which of the backend to use depending on the type of
+application. This feature allows flexible and computationally efficient network representation,
+together with smooth integration with other optimization libraries in the ecosystem (Babuschkin
+et al., 2020), both for Bayesian inference (e.g. to iterate HGF models as part of multilevel
+Bayesian networks) or to interface with other reinforcement learning and neural network libraries
+(Heek et al., 2023).
+The organisation of the manuscript is as follows: we first describe dynamic neural networks
+from a theoretical and programming point of view, with a focus on the generalised Hierarchical
+Gaussian Filter for predictive coding, which is a specific instance of such a network. We introduce
+the proposed framework and highlight key differences both with previous versions (Mathys, 2011;
+Mathys et al., 2014) and other software implementations (Fr¨assle et al., 2021). In the results
+section, we illustrate the standard workflow supported by the toolbox, from network development
+to observing the observer. We implement the classical three-level Hierarchical Gaussian Filter
+for binary inputs and demonstrate forward fitting, multiple response models, Bayesian inference,
+multilevel hierarchical modelling, parameter recovery and model comparison. Finally, we discuss
+how the proposed tool could facilitate the creation and simulation of autonomous agents that
+dynamically approximate high-dimensional distributions to navigate their environment, how this
+could streamline the development of active inference and highlight new research lines at the
+interface between computational neuroscience and artificial intelligence.
+2
+Design and Implementation
+In this paper, we introduce pyhgf, a Python library for the creation, manipulation and inference
+over dynamic neural networks for predictive coding, with a focus on the generalized Hierarchical
+Gaussian Filter (Mathys, 2011; Mathys et al., 2014; Weber et al., 2023). Models and theories that
+imply such networks are becoming ubiquitous in computational neuroscience, and researchers
+interested in fitting behavioural data to these models require the flexibility of a regular neural
+network library, together with the modularity of a probabilistic framework to perform inference
+over parameters of interest. In this package, we provide the user with an API that provides
+methods for smoothly interacting with these two levels of modelling:
+1. A set of core methods to define, manipulate and update dynamic neural networks for
+predictive coding. These networks need to provide unique flexibilities in their design, and
+the user has control over this using a limited set of parameters, accessible both to the user
+in the design process and to the agent in real-time adaptive behaviours.
+2. Higher-level classes for embedding any of these networks as custom likelihood functions in
+multi-level Bayesian models, or as loss functions in other optimisation libraries. Those
+classes include fully defined probabilistic distributions that integrate with PyMC (Oriol
+et al., 2023) and tools to help diagnose inference, visualization, and model comparison
+(Kumar et al., 2019).
+By using these interfaces, it is expected that the user will be able to customize the computa-
+4/21
+tional structure of artificial agents to fit a broad range of applications, both in experimental
+cognitive neuroscience and artificial intelligence. Here, we start by reviewing the core principles
+on which dynamic neural networks are built, and how this differs from other network libraries.
+2.1
+Computational framework
+The design and software implementation of dynamic neural networks for predictive coding has
+been shaped by a set of requirements. These networks are made of nodes that can store any
+number of variables, some variables might be found in other nodes as well, and some might
+be unique. Nodes are connected with each other through directed edges, and there can exist
+multiple types of connections in the same graph, denoting different interactions between the nodes.
+Computation steps in the graph typically occur locally between adjacent nodes for prediction and
+prediction errors. Multiple types of computation can be defined. The computation steps can be
+triggered either reactively, by observing events in the surroundings of a node and reacting to it,
+or scheduled, by pre-allocating a sequence of steps that will propagate the information through
+the graph. Finally, all these components should be transparent to the network itself when
+performing a given computation, which allows it to meet self-monitoring and self-organisation
+principles.
+By observing the set of constraints above, it appears that computations should follow a
+strict functional programming framework, hence being in-place programmatically pure functions
+operating on the components of the network. Functional programming is natively supported in
+Rust and also enforced by JAX (Bradbury et al., 2018) to leverage just-in-time (JIT) compilation
+and automatic differentiation, therefore departing from object-oriented programming (the
+definition of classes populated with attributes and methods) that is a central feature of Python.
+This comes with limitations in the way toolboxes’ API can be developed (see for example
+how this can be handled in (Kidger & Garcia, 2021)). To fully meet the dynamic aspects
+mentioned previously, the update functions should receive and return possibly all of the following
+components defining a network:
+1. A list of attributes - the attributes are dictionaries of parameters of a given node
+2. A set of lists of edges - the edges are the directed connections between the nodes. All the
+possible edge types are grouped into a set.
+3. A set of update functions. Each function defines a computation and can be parametrised
+by the index of the triggering node. Possible computations are for example prediction,
+posterior update or prediction error between two nodes.
+4. Unless using a reactive computation scheme, the function should also have access to an
+ordered sequence of update functions that apply to individual nodes.
+By defining these four components, and by creating functions that can receive and return
+all of them, the user can generate arbitrarily sized and structured dynamic neural networks for
+predictive coding (see 1). The first two items define what is usually called a graph, with the
+addiction that it can be directed and multilayered. The last two items shape what is central to
+predictive coding: the schedule or reactive nature of the propagation of information through the
+network. Because all of these components are transparent during message-passing computations,
+5/21
+Update functions
+Update sequences
+Posterior update
+Attributes
+Edges
+Prediction
+Prediction error
+t
+t+1
+Figure 1. The four components of a dynamic network for predictive coding. pyhgf represents any
+dynamic network using the combination of four variables: attributes, edges, update functions and update sequences.
+This modularity allows dissociating update steps and connectivity structures and makes these variables part
+of the inference process. The creation of a network can read from left to right. 1. Attributes. Nodes in the
+network are filled with parameters (e.g. sufficient statistics about probability distributions and coupling weights).
+2. Edges. Nodes can have multiple connection types with each other (e.g. value and volatility coupling). The
+network’s structure is represented in a m dimensional adjacency list that encodes the directed connections with
+other nodes. Here, dotted and filled lines represent different types of connectivity. 3. Updates. Update functions
+are deterministic transformations operating locally that can access and modify the four variables at run time. 4.
+Update sequences. The update sequence shapes belief propagation. It defines the order in which nodes should
+be updated when a new observation is presented to the input(s) node(s). By default, prediction propagates from
+the leaves to the root of the network, while the interleaved sequence of prediction errors and posterior updates
+follow the inverted path. Updates can also be triggered reactively in which case the propagation starts with the
+activation of a proximal node.
+learning algorithms can be developed to act on them as a way of inference. Acting on the
+attributes corresponds to standard reinforcement learning. Acting on the size of the networks
+is comparable to structure learning. Acting on the edges can relate to causal inference, and
+acting on the update functions or their sequence can implement principles from meta-learning
+(see 4 for more details on possible applications). The hard constraint on transparency of the
+network component during message passing makes this framework difficult to implement in other
+graph/neural network libraries (e.g. see (Fey & Lenssen, 2019; Godwin* et al., 2020)). Most of
+these constraints can be met by using a pure JAX implementation (Bradbury et al., 2018) while
+being compatible with transformations like JIT and automatic differentiations. Some advanced
+use cases of dynamic reshaping and edge manipulation might result in performance downgrading
+or incompatibilities with some transformations. When using Rust (Matsakis & Klock, 2014) as
+the backend, all these constraints can be met with no cost in terms of performance.
+The dynamic networks, as supported by the library, are then defined as the combination of
+four variables (see 1). Let for example Nk be a neural network with K nodes. This network
+handles in a tuple four parameters of interest:
+NK = {Θ, Ξ, F, Σ}
+(1)
+The variable Θ = {θ1, ..., θk} represents the nodes attributes. Attributes can be used to
+register local information like the sufficient statistics of a probability distribution as well as the
+coupling weights with other nodes. This variable can also be arbitrarily extended to include
+other fixed parameters or results from other update steps. In a convolutional neural network, Θ
+would for example encode the activation strength. Most standard reinforcement learning models
+6/21
+optimize attributes that belong to this parameter space.
+The second key parameter, tightly linked to this one, is the adjacency list Ξ = {ξ1, ..., ξk} that
+controls the shape of the network. Each item in this set registers the directed connection between
+node k and other nodes. Networks that exhibit different connectivity structures would propagate
+information differently. The set of directed connections can be multivariate (a node can have
+different types of connection with other nodes), such as in multilayer networks (De Domenico,
+2023). For example, the nodalized Hierarchical Gaussian Filter (Weber et al., 2023) assumes two
+kinds of coupling between nodes: value and volatility coupling. Every edge ξk, therefore, contains
+m = 2 sets of node indexes in this case, m being the adjacency dimension. By comparison, in a
+standard recurrent neural network, this variable would define the shape of the layers and their
+connectivity. Critically, in the proposed framework, this variable is transparent to the update
+function and can be subject to inference and updates.
+The third central component is the set of n in-place update functions F = {f1, ..., fn} defining
+a message passing step operating on the network’s parameter set such as:
+fk
+n(NK) = N ′
+K
+(2)
+In a convolutional neural network, this set of functions would include the linear product of
+input and weights as well as the activation functions. In the generalized HGF (Weber et al., 2023),
+this includes three kinds of steps: a prediction (based on previous values and any parent nodes),
+an update step (based on input from child nodes and the prediction), and the computation
+of a prediction error. The specific computations in each case depend on the type of coupling
+between parent and children nodes. Note that the function is parametrized by a target node k
+on which it applies. This allows defined local computation where only information from a subset
+of adjacent nodes is used, such as in the mean field approximation.
+Finally, a fourth component is introduced to control the scheduling of these update steps
+over time as Σ = [fn1
+1 , ..., fnk
+i , fi ∈F, n ∈1, ..., k]. This ordered list describes a sequence of
+functions parametrized on individual nodes. The update order shapes belief propagation. This
+component is rarely expressed in the form of a parameter in most conventional applications
+of neural networks, as well as in the previous implementation of the HGF. This sequence is
+instead scripted outside the network’s closure and, therefore, not accessible during inference or
+optimization. In the case of predictive coding neural networks, however, finer control over belief
+propagation might be requested by the user, which also offers flexibility in the modification of
+belief propagation dynamically. When using the HGF as implemented in pyhgf, this scheduling
+can be generated at runtime from the network structure Ξ, assuming an ideal belief propagation
+pattern with a cascade of prediction from the leaves to the root of the network, and another
+cascade of prediction error / posterior update pair from the roots to the leaves.
+The proposed framework is intended to provide the minimal layout required to create dynamic
+neural networks for predictive coding. It allows users to create and manipulate the scheduling
+of updates through a network of nodes while keeping the four components of the networks
+available for inference. Contrary to other neural networks that rely on matrix multiplication
+for learning, our networks implement local computations that are run sequentially to propagate
+beliefs along connectivity paths. This also offers a clear dissociation between components that
+can be developed separately. It is for example possible to create alternative message-passing
+algorithms without having to develop an entire library to simulate the networks, and it is possible
+7/21
+to implement existing predictive coding frameworks so users can easily apply them to behavioural
+data. pyhgf natively support the generalised Hierarchical Gaussian Filter (Weber et al., 2023),
+a recent development of the Hierarchical Gaussian Filter (Mathys, 2011; Mathys et al., 2014)
+into a nodalised version for predictive coding. In this framework, for example, every node in the
+network represents a probability distribution of a belief about a latent space in the environment.
+Beliefs are updated through precision-weighted prediction errors coming from nodes in a lower
+level of the hierarchy and propagated to higher-level nodes. The exact update functions have
+been derived in their closed form and can work with arbitrary network architectures (Weber
+et al., 2023), which makes this model an excellent application of dynamic neural networks as
+described here. The popularity of the Hierarchical Gaussian Filter in computational psychiatry,
+and the need for advanced Bayesian modelling tools around it, are also good opportunities
+to extend the original Matlab toolbox (Fr¨assle et al., 2021) by enhancing the modularity and
+extensibility of the library.
+2.2
+Optimization and inference
+While predictive coding itself originates from fields linked to signal processing and information
+theory (Oliver, 1952), the use of predictive coding as a framework for hierarchical inference
+(Friston, 2005; Rao & Ballard, 1999) in biological neural networks makes it especially applicable
+to fields related to experimental neuroscience and computational psychiatry. In this context, the
+neural networks are components of a cognitive model of the subject on which the experimenter
+performs inference (i.e. observing the observer (Daunizeau et al., 2010)). For example, in the
+context of the generalised Hierarchical Gaussian Filter, the user might be interested in inferring
+the posterior distribution of tonic volatility at different levels of the hierarchy from observed
+behaviours.
+That kind of reverse inference requires the use of advanced techniques like MCMC sampling
+or gradient descent which involves the evaluation of several instances of a network, as well as the
+gradient at evaluation, to find parameters maximizing likelihood. In the Matlab HGF toolbox
+(Mathys, 2011; Mathys et al., 2014), the inference step is implemented using variational Bayesian
+inference, which can be difficult to apply in the context of multilevel models, highlighting the need
+for both performances and the benefit of automatic differentiation. Here, the codebase is entirely
+written in Python and, as in version 0.2.0, can use JAX (Bradbury et al., 2018) as a computational
+backend that can easily deploy code on CPU, GPU and TPU. JAX offers a rapidly growing
+ecosystem for machine learning (Babuschkin et al., 2020) and artificial intelligence that already
+includes toolboxes that are conceptually related to predictive coding and Hierarchical Gaussian
+Filters, such as state-space modelling (https://github.com/probml/dynamax), reinforcement
+learning (Hoffman et al., 2020), neural networks (Heek et al., 2023; Kidger & Garcia, 2021)
+or graph neural networks (Godwin* et al., 2020). We leverage automatic differentiation and
+just-in-time compilation offered by JAX (Bradbury et al., 2018) to let the networks interface
+smoothly with other optimization and inference libraries like PyMC (Oriol et al., 2023) that
+support a large range of sampling or variational methods, including Hamiltonian Monte-Carto
+methods such as the No-U-Turn Sampler (NUTS) (Homan & Gelman, 2014), an approach
+that has proved to be highly efficient when scaling to high-dimensional problems.
+While
+dimensionality was not a major concern for individual model fittings, this can arise if we want
+to model group-level parameters, and therefore estimate a large number of networks together
+8/21
+with hyperpriors (multilevel modelling). Assessing group-level estimates is a crucial step for
+studies in computational psychiatry, where gaining insights into computational parameters at
+the population level can inform further diagnosis and classification. It is therefore possible to
+apply multilevel modelling to any dynamic neural network handled by the toolbox, and in the
+next section, we will focus more on the development workflow using the standard three-level
+Hierarchical Gaussian Filter as an example.
+3
+Results
+Users interested in using the pyhgf package are referred to the main documentation under
+the following link: https://ilabcode.github.io/pyhgf/index.html. The documentation will host
+an up-to-date theoretical introduction, API descriptions, and an extensive list of tutorials
+and examples of various use cases. In this section, we will be concerned with the standard
+analytic workflow of the package: we will explain how to create and manipulate dynamic
+networks, how to fit the network to a sequence of observations, and how to perform inference
+and optimization over parameters (see 2). This concrete use case will demonstrate how dynamic
+networks are especially well suited to create modular efficient structures for signal processing
+and real-time decision-making. These generic systems have direct applications in artificial
+intelligence and computational neuroscience, focusing on psychiatry, for the robust estimation
+of learning parameters through multilevel models, model comparison and parameter recovery.
+These procedures are illustrated in 3 using a large simulated dataset.
+For the results reported in 2 and in 3, we used binary observations and binary decision
+responses (hereafter denoted u and y, respectively) from a behavioural experiment using an
+associative learning task (Iglesias et al., 2021). Such a dataset is especially well suited for a
+binary Hierarchical Gaussian Filter, and here we used the three-level version of this model, as
+it binds together most of the framework’s building blocks. The models reported below were
+created and visualized using pyhgf v0.2.0. Bayesian inference was performed using PyMC
+v5.16.2 (Oriol et al., 2023). The posterior densities and traces were plotted using Arviz v0.19.0
+(Kumar et al., 2019). The Jupyter notebook used to produce models and figures can be retrieved
+at https://github.com/ilabcode/pyhgf/blob/paper/docs/paper.ipynb.
+3.1
+Generative model, forward fitting and parameter inference
+The standard workflow usually starts with the creation of a Bayesian network similar to what
+is depicted in 2 (panel a.). This network is intended the represent the generative model of
+the environment as inferred by the agent. When using pyhgf’s built-in plotting function, the
+nodes that can receive observations are displayed in the lower part of the graph (roots). Here,
+the inputs are inserted in a binary state node (x1) whose value indicates the probability of
+observing the category 1. This node’s value is itself predicted by a continuous state node (x2),
+which encodes this probability as a continuous unbounded variable after transformation using
+the logit function. Because the variability of this variable is assumed to change over time, the
+fluctuation is controlled by the third node (x3) through volatility coupling, represented here
+using dashed lines. If the volatility is assumed to be fixed, the third node can be removed (i.e.
+hence a two-level binary HGF). This graphical depiction can be generated using the internal
+pyhgf plotting library, which is convenient to visualise and debug complex networks.
+9/21
+b. 
+c. 
+a. 
+Perceptual model
+Response model
+Generative model
+Model inversion
+ 
+Prediction error
+Posterior update
+Parameter inference
+Observations
+Prediction
+1
+2
+3
+Figure 2. Optimization and inference on the three-level Hierarchical Gaussian Filters for binary
+inputs. A. 1) Graphical representation of the generative model. Squared nodes represent binary state nodes
+and circle nodes continuous state nodes. Dashed lines indicate a volatility coupling while solid lines indicate a
+value coupling. The response model assumes a sigmoid response function with an inverse temperature parameter.
+2) Model fitting relies on an iterative inversion of the generative model through the propagation of top-down
+predictions and bottom-up cycles of prediction errors / posterior updates. 3) Parameter inference and optimization
+imply a second inversion of the fitting procedure, which relies on automatic differentiation internally. The response
+function defines the log probability (or negative surprise) of the observed data under the generative model. B.
+Posterior distribution of inferred parameters. Here, we inferred the value of tonic volatility (ω) at the second level
+(x2), and the inverse temperature of the response function (t). The upper panel display the resulting traces (4
+chains with 1000 samples), and the bottom panel is a bivariate representation of the posterior density. All outputs
+are compatible with PyMC Oriol et al., 2023 and Arviz Kumar et al., 2019 for visualization and diagnostics.
+C. The belief trajectories across time for a model using the best parameter set from the previous steps. The
+grey-filled curves represent the surprise. The expected mean and precision at each level are depicted using the
+coloured lines and shaded area (respectively). The plot was generated using pyhgf’s plotting module.
+10/21
+While the generative model can read as a regular Bayesian network and simulate a time
+series of belief dynamics, we are generally more interested in fitting this structure to existing
+observations and updating each node’s value accordingly. This step corresponds to the first
+inversion of the model and simulates the agent updating its beliefs when facing contradicting
+evidence. This unfolds in three parts: 1). an inference step in which a cascade of predictions is
+triggered from the leaves to the root of the network, 2). a new observation is received, and 3).
+an update step is applied through the propagation of prediction error, alternating with posterior
+updates, from the roots to the leaves. The resulting trajectories are influenced by the values of
+some key node attributes, such as the tonic volatility at the second level (hereafter denoted ω),
+which represents the precision of the implied normal distribution, and acts as the learning rate
+in this context.
+The procedure above describes the perceptual model and explains how beliefs evolve in the
+network as new observations are made. We then can assume that an agent uses available beliefs
+at time k to inform decisions and actions. How to convert beliefs into actions depends on the
+problem we try to solve. Here, we assumed that the participant uses the value of the node x1
+through a sigmoid transform with an inverse temperature parameter, as a probability to select
+action 1. This function can generate actions from the beliefs trajectories, but can also quantify
+their likelihood if they have been recorded during the task, which can be used as a log-probability
+function to measure the quality of model fitting. If we assume that some attributes are not
+fixed, such as the tonic volatility at the second level (ω) and the inverse temperature parameter
+(t), the probability density of these parameters given the observations, decision and network
+assumed (P(ω2, t|u, y, N)) can be recovered through MCMC sampling (see panel B.). By taking
+the average of the resulting samples, we can recover an approximation of the expected value
+of each variable. Here, we used four chains, each containing 1000 samples. We can then use
+these estimates, fit the model to the same data, and recover the belief trajectories that are most
+likely to explain the observed behaviours (see panel c.). Because the model inversion relies on a
+closed-form solution of the variational update, model fitting is fully deterministic, meaning that
+we will recover the same belief trajectories given identical inputs and network parameters.
+3.2
+Bayesian multilevel modelling, parameter recovery and model comparison
+Cognitive neuroscience experiments involve multiple participants, and the statistical procedure
+requires inferring multiple parameters at once. To illustrate this practice we simulated in the
+second part the processing of a large simulated dataset (50 participants). We used here the same
+vector of observations u, but this time generated 50 response vectors yi by sampling from the
+response function with varying values for the two parameters of interest (ω and t, see 3 panel
+a.). Using the same fitting procedure as 2, we applied this to multiple pairs of observations u
+and actions yi. This step is fully parallelized, it will therefore benefit from hardware acceleration
+provided by multiple CPU or GPU, and because we assume no dependencies across participants,
+we would obtain the same results fitting all participants iteratively, or a group of participants in
+a single-level Bayesian model (see 3 panel b.). We then tried to illustrate how the real values
+from parameters ω and t could be recovered from the observations and actions alone, a practice
+known as parameter recovery. The recovered parameters, together with the real parameters
+used for the simulation of decisions are displayed in panel c.. Overall, the alignment of the
+recovered parameters in the identity line suggests a good recovery from the input data. This can
+11/21
+be further quantified, for example using correlation coefficients, which was not reported here.
+We can use different networks as generative models on the same dataset, for example, we
+can add or remove a node (e.g. going from a three-level to a two-level binary HGF), or use
+different response functions. When the structure of the model itself diverges, these models can
+be compared side by side using model comparison techniques that operate directly from the
+samples returned by the MCMC procedure (Vehtari et al., 2016). To illustrate this we created a
+second model, identical to the previous one, in which the response function simply used the value
+at x1, without inverse temperature. Such a model is expected to have the worst performance
+in predicting the simulated participant decisions, as it will miss the variability introduced by
+the temperature. Using the same single-level Bayesian fitting procedure, we can now compare
+them side-by-side using leave-one-out cross-validation (LOO), as it is implemented y default in
+Arviz. The results, displayed in panel d. show that the model including the inverse temperature
+performed better than the simplest model (softmax).
+Finally, the experimenter might be interested in recovering the estimate of population
+parameters, beyond the individual fits, for example, to compare healthy control with patient
+groups. This practice requires using a multilevel approach, in which participants’ parameters
+are not statistically independent but drawn from the group distribution (see Multilevel Bayesian
+model in 3 panel b.). This constraint can help refine the estimates recovered and give more
+statistical power when comparing groups or conditions. We report in panel d. the inferred
+posterior density for the mean of ω andt at the population level, together with the empirical
+means (orange vertical lines). Overall, the results suggest good reliability of the inferred posterior
+density, as both empirical means were included in the 94% highest density interval (HDI) of the
+population estimates.
+12/21
+a. 
+d. 
+c. 
+Infering beliefs trajectories
+from observations
+Sampling decisions
+from the response model
+Multilevel Bayesian model
+Single-level Bayesian model
+b. 
+e. 
+Observing a sequence 
+of outcomes
+Figure 3. Recovering computational parameters. A. Data simulation. We used a set of observations u
+from Iglesias et al., 2021 as environmental outcomes to simulate beliefs trajectories under varying values for the
+second level volatility (ω) and the inverse temperature (t). The expected probability at the first level was then
+used to sample a vector of decision using the same response function as described in 2.B. Bayesian modelling of
+the network’s parameters using single-level and multilevel approaches. The single-level approach does not set
+group constraints on individual parameters and is therefore preferred for parameter recovery. We also used this
+version for the model comparison. The multilevel version puts hyperpriors on top of the individual parameter
+which allows inference at the group level. C. Parameter recovery. On both panels, the x-axis represents the
+simulated value, and the y-axis represents the recovered/inferred value for tonic volatility at the second level (left)
+and inverse temperate (right). The dashed line shows the unit line for reference. D. Model comparison results.
+We compared a model using a simple sigmoid function as a response function with another one using a sigmoid
+with an inversion temperature parameter. The plot represents the comparison between the two models based on
+their expected log pointwise predictive density (ELPD), which is the default recommended method for model
+comparison when using Arviz. E. Posterior estimates of group-level hyperparameter. Posterior density estimates
+of group mean for tonic volatility (ω) and temperature (t). The orange vertical lines represent empirical group
+means, the intervals represent the 94% highest density intervals (HDI).
+13/21
+4
+Availability and future directions
+Bayesian models of cognition have been around for decades, and frameworks like predictive
+coding are popular for their efficiency in modelling information processing in the central nervous
+system. The simplicity and modularity of the computational steps that support learning and
+optimization of these networks are opening new research avenues for designing structures without
+requiring gradient descent (Millidge, Salvatori, et al., 2022), and can easily extend to various
+forms of processes, such as causal inference (Salvatori et al., 2023) or temporal predictions
+patterns (Millidge et al., 2024).
+In this paper, we introduced pyhgf, a Python package that provides a generic framework to
+design, manipulate and sample dynamic networks for predictive coding. Unlike conventional
+neural architectures, dynamic networks are tailored to react and reorganise when absorbing
+sensory inputs without relying on an external optimization algorithm.
+This framework is
+intentionally abstract and agnostic towards the mathematical formalism that implements inference
+and optimisation. We provide a complete implementation of generalised Bayesian filtering
+(Mathys & Weber, 2020) and the generalised Hierarchical Gaussian Filter (Homan & Gelman,
+2014; Mathys, 2011; Weber et al., 2023) as two important tools for predictive coding.
+The package lets the user create and manipulate arbitrarily sized networks defined as rooted
+trees on which scheduling or reactivity of simple local updates is applied to perform belief
+propagation. Critically, every step in the propagation is an in-place function receiving and
+returning the network itself. This supports complete plasticity and dynamics during the updates.
+We believe that this design allows not only the smooth manipulation of such networks but also a
+better dissociation between different methodological developments of predictive coding (e.g. the
+mathematical formalism versus the experimental application) so the user does not need complete
+expertise in all these domains to use the tools.
+We have illustrated in 3 a possible workflow when using the library, taking as an example a
+popular model from computational psychiatry: the three-level hierarchical Gaussian filter. In
+this section, we are more concerned with the new possibilities offered by the framework that are
+not available in other libraries. These new directions can be summarised as twofold: 1. whether
+the computational graphs have fixed shapes, or 2. whether the graphs are dynamic and the
+structure is flexible 4. We provide below examples of such implementations.
+4.1
+Generalised Bayesian filtering in static networks
+Bayesian networks are foundational models for the development of predictive coding. Importantly,
+the dynamic networks that we introduce here are also Bayesian networks, at least during the
+prediction steps. Predictive coding is more concerned with the Bayesian updating of those
+graphs in real time and uses prediction errors as key quantities to manipulate these updates.
+While static, this graphical representation is nonetheless highly relevant to modelling the nervous
+system (Friston et al., 2017). One interesting aspect of this framework is that arbitrary-sized
+neural networks can represent arbitrary complex generative models without having to rethink
+an entire algorithm: simple and principled local updates are generalized across the network
+to approximate variational inference. While nodes are implicitly tracking one parameter value
+through unidimensional normal distributions, arbitrarily complex networks can combine any
+exponential family distribution by using multiple nodes to track sufficient statistics (Mathys &
+14/21
+Wide / Deep networks
+a. Static networks
+Multimodal networks
+Control-flows
+if
+else
+Mixture distributions
+Dynamic structure - Nonparametric modelling
+Dynamic edges - Causal discovery
+Dynamic propagations - Meta-learning
+b. Dynamic networks
+Generalised Filtering
+Custom nodes / coupling
+x1*x2
+Figure 4. Possible use cases of static and dynamic graphs. a. The library supports arbitrary network
+structure, including deep/wide networks and multivariate dependencies/ascendencies that can handle a large
+number of inputs with nested hierarchical dependencies (top-left). Belief propagation dynamics are adaptable and
+can implement regular control-flow statements, for example, to condition message passing on the outcome of some
+assertion (top-right). Any node can observe new inputs. Branches of a network observing some inputs will specialise
+in their dynamic but can share volatility or value at higher levels with other branches (e.g. physiological signals
+and binary outcomes, middle-left). Nodes can capture influence from multiple parents as mixture distributions for
+online clustering middle-right. Any exponential family distribution can be filtered, here each node is tracing one
+sufficient statistic parameter bottom-left. The update steps can be adapted and implement custom operations
+either at the node level or through coupling functions bottom-rigth. b. Dynamic graphs can update nodes’
+attributes and their structure, edges and propagation functions. This flexibility can be used to add an inference
+process that could accommodate catastrophic prediction errors and protect the inference in the long term. This
+can imply increasing the model complexity, a principle known as Bayesian nonparametric top. Adapting the
+network’s edges can change the causal relationship between variables, a process known as causal discovery middle.
+The propagation dynamic can expand its affordances and get more complex to improve the inference algorithm as
+new observations are made, a process that borrows principle from meta-learning bottom. All the examples here
+depict networks assuming the context of a generalized Hierarchical Gaussian Filter (Weber et al., 2023), but the
+principles can easily be adapted to other predictive coding frameworks.
+Weber, 2020). This approach in itself offers considerable modularity in real-time probabilistic
+modelling, as the development of complex variational update algorithms can be replaced by
+the manipulation of nodes in a large network. We believe that the flexibility and modularity
+proposed by the framework will continue to extend applications of the Hierarchical Gaussian
+Filter on various filtering problems (Senoz & de Vries, 2020; Senoz et al., 2021).
+One straightforward consequence is that networks can be extended in several dimensions:
+not only horizontally (by adding more input nodes) and vertically (adding more parent nodes),
+but also through multivariate descendency (one parent node influencing many child nodes) or
+ascendency (multiple parent nodes influencing one child node). Extensions of the model can
+include for example multiple inputs design, mixture of distributions or combination of parents
+influence into custom operations. By setting dependencies between branches of a network that
+are oriented toward the processing of certain kinds of signals, it is for example possible to bring
+together the high dimensionality and multimodality of observation usually recorded in cognitive
+15/21
+neuroscience. This can find direct applications in situations where neural physiological recordings
+should be related to behavioural outcomes and decisions. Here, a branch of the network can
+filter one stream of physiological signals (e.g. respiration, heart rate, EEG or fMRI signals) while
+another branch is used as a decision-making process (see the middle-left panel in 4 a.). Such
+situations are pervasive in the field, and statistical analyses are often carried out by correlation of
+independent modality-dedicated methods. whereas here, a multi-branch HGF can bind together
+the mutual influence of behaviours and physiology in a consistent model.
+4.2
+Structure learning, causal inference and meta-learning in dynamic net-
+works
+Besides the large flexibility provided by the connectivity of the networks, the malleability of
+structural variables during belief propagation is also opening new avenues. Predictive coding
+networks use precision-weighted prediction errors to drive posterior updates. The update is
+proportional to the error computed at a lower level, and when large errors are observed the network
+needs to accommodate new evidence. This configuration can have disastrous consequences if
+the surprise is getting completely out of control, as this can happen with improper precision
+weighting, or simply when receiving observations that are far from the expected distribution. It is
+therefore essential for these systems to implement firewalls that could contain the propagation of
+catastrophic updating and preserve past learnings from complete erasing. Here, we suggest that
+the dynamic reconfiguration of the networks can serve as an alternative to belief updating under
+disproportionate surprise, and preserve the model integrity. This idea arise from the application
+of some biological principles to Bayesian networks, but interestingly its implementation can
+express a variety of other popular learning and inference algorithms that are also highly inspired
+by biological systems, namely structure learning, causal discovery and meta-learning.
+Self-assembling and self-growing neural networks are a new, active, and rapidly advancing
+area of research in deep reinforcement learning (Najarro et al., 2023). These approaches stress
+the notion that biological as well as artificial agents should implement a flexible reorganization of
+their generative model to support lifelong learning (Kudithipudi et al., 2022), a feature that also
+remains absent in many applications of predictive coding to date. While several methods have
+been developed by extending conventional deep neural networks, here, we propose that dynamic
+networks can naturally embed this principle by simply adding or removing nodes during the
+belief propagation steps (see the top panel in 4 b.). This feature could leverage the flexibility
+of a predictive coding framework to implement branching, splitting, and merging behaviours
+under prediction errors, which can be a way to express nonparametric modelling problems. It
+is worth noting here, that the dynamic reshaping of networks in real-time would contribute to
+both the memory and energy efficiency of the system, ensuring that at each time step, only an
+optimal number of nodes are carried over. The resulting structure then works as a comprehensive
+encoding of relevant past environmental volatility, building on the notion that the shape of the
+system, and beyond that the agent’s body itself, is an active part of the inference process.
+But this modulation of the network structure can also merely concern edges, without adding
+or removing significant portions of the graphs. Because dynamic networks behave like Bayesian
+networks during the prediction steps, editing the edges equates to modulating the causal
+relationship between variables, which is a way to express causal discovery algorithms. In this
+context, the agent tries to recover the causal graph from observation only (see the middle panel
+16/21
+in 4 b.). It is widely assumed that inference over causality in general plays an important part in
+the development of human and animal cognition (Goddu & Gopnik, 2024), with applications
+ranging from improving conventional reinforcement learning methods (Deng et al., 2023) to the
+analytics of structured texts and narrative (Chen & Bornstein, 2024). Here, causal influence
+can be inferred in real-time, which again is a way to optimise memory and energy consumption
+and open possibilities for the estimation of time-varying causal relationships, or even degrees of
+volatilities in causal influence, a notion that could find several applications in computational
+psychiatry.
+Finally, the structural malleability of dynamic networks can target the belief propagation
+dynamic itself. Belief propagation are sequence of functions, therefore both the sequence and
+the functions can be adapted to improve inference when aggregating more observations. Such
+plasticity emerges naturally in biological networks, but it is somehow obscured by the software
+implementation when it comes to artificial neural networks. Here, update functions themselves
+are part of the sufficient descriptive variables of a network passed during beliefs update, meaning
+that inference can edit them in real-time to improve predictive accuracy (see the lower panel in
+4 b.). This approach borrows principles from both Bayesian nonparametric such as Gaussian
+Processes that update posterior distribution over function, and meta-learning, a generalisation
+of reinforcement learning where an agent tries to learn a learning algorithm (Binz et al., 2023).
+The propagation itself can increase its range (i.e. propagating the beliefs into deeper portions
+of the network), as well as the update function, which can be done in a deterministic way, by
+setting prior over a range of coupling functions, or by the automated generation of code, which
+is now made easier given the new application of Large Language Models in this domain (Willard
+& Louf, 2023).
+In addition to these core computational internal changes, and closer to active inference models,
+the package also supports the modular extension of the response functions used by the agent (i.e.
+the beliefs-to-action function). This framework is central for reinforcement learning applications
+and often requires custom response functions tailored to specific tasks. Examples of how to use
+custom response functions can be found in the online documentation for more details.
+5
+Conclusion
+In this paper, we have introduced pyhgf, a neural network library for predictive coding with a
+focus on generalised Bayesian filtering and the generalised Hierarchical Gaussian Filter (HGF).
+We described how the modular definition of neural networks supporting the scheduling of update
+steps can serve as a generic framework for models relying on the propagation of simple local
+computation through a hierarchy of layers, such as predictive coding neural networks. One part
+of the API is dedicated to the flexible development of dynamic networks, while the second part is
+oriented towards high-level use and parameter inference, as typically requested by computational
+neuroscience studies. Together, we hope that this toolbox will help and strengthen the application
+of predictive neural networks in computational psychiatry, and open new designs in artificial
+intelligence towards hybrid and complex models of cognition that build on top of the principled
+computation derived from predictive coding. pyhgf can be installed from the Python Package
+Index (https://pypi.org/project/pyhgf/) and the source code is hosted on GitHub under the
+following public repository: https://github.com/ilabcode/pyhgf. The documentation for the most
+recent version is accessible at the following link: https://ilabcode.github.io/pyhgf/index.html.
+17/21
+The documentation hosts extensive tutorials, examples, and use cases with applications on signal
+processing, reinforcement learning, and computational psychiatry. We point interested readers
+to these resources for a deeper practical introduction to the library.
+Glossary
+hierarchical Gaussian filter The Hierarchical Gaussian Filter is a popular model in compu-
+tational psychiatry that unifies reinforcement learning and Bayesian inference. While it
+can be described as a recurrent neural network, it is often more conveniently described
+using the generative model it inverted. When applied straightforwardly to time series,
+the Hierarchical Gaussian Filter acts as a Bayesian filter that updates its expectation
+using errors of predictions at the previous time point, an approach that is similar to both
+Kalman filters and Rescorla-Wagner update rules. Here, the learning rate is not fixed
+but influenced by the higher level of the hierarchy, generally encoding the volatility of the
+environment. Recent developments have turned this model into a generic framework that
+can handle arbitrarily sized networks of distributions.. 3
+predictive coding Predictive coding is a unifying theory that has emerged in computational
+neuroscience, postulating that the brain performs inference on hierarchical predictive
+models of the environment through the computation of local prediction errors.. 2
+References
+Babuschkin, I., Baumli, K., Bell, A., Bhupatiraju, S., Bruce, J., Buchlovsky, P., Budden, D., Cai, T.,
+Clark, A., Danihelka, I., Dedieu, A., Fantacci, C., Godwin, J., Jones, C., Hemsley, R., Hennigan,
+T., Hessel, M., Hou, S., Kapturowski, S., . . . Viola, F. (2020). The DeepMind JAX Ecosystem.
+http://github.com/deepmind
+Betancourt, M. (2017). A conceptual introduction to hamiltonian monte carlo.
+Binz, M., Dasgupta, I., Jagadish, A. K., Botvinick, M., Wang, J. X., & Schulz, E. (2023). Meta-
+learned models of cognition. Behavioral and Brain Sciences, 47. https://doi.org/10.1017/
+s0140525x23003266
+Bradbury, J., Frostig, R., Hawkins, P., Johnson, M. J., Leary, C., Maclaurin, D., Necula, G., Paszke, A.,
+VanderPlas, J., Wanderman-Milne, S., & Zhang, Q. (2018). JAX: Composable transformations of
+Python+NumPy programs (Version 0.3.13). http://github.com/google/jax
+Chen, J., & Bornstein, A. M. (2024). The causal structure and computational value of narratives. Trends
+in Cognitive Sciences, 28(8), 769–781. https://doi.org/10.1016/j.tics.2024.04.003
+Corlett, P. R., Horga, G., Fletcher, P. C., Alderson-Day, B., Schmack, K., & Powers, A. R. (2019).
+Hallucinations and strong priors. Trends in Cognitive Sciences, 23(2), 114–127. https://doi.org/
+10.1016/j.tics.2018.12.001
+Da Costa, L., Lanillos, P., Sajid, N., Friston, K. J., & Khan, S. (2022). How active inference could help
+revolutionise robotics. Entropy, 24(3), 361. https://doi.org/10.3390/e24030361
+Daunizeau, J., den Ouden, H. E. M., Pessiglione, M., Kiebel, S. J., Stephan, K. E., & Friston, K. J. (2010).
+Observing the observer (i): Meta-bayesian models of learning and decision-making (O. Sporns,
+Ed.). PLoS ONE, 5(12), e15554. https://doi.org/10.1371/journal.pone.0015554
+De Domenico, M. (2023). More is different in real-world multilayer networks. Nature Physics, 19(9),
+1247–1262. https://doi.org/10.1038/s41567-023-02132-1
+Deng, Z., Jiang, J., Long, G., & Zhang, C. (2023). Causal reinforcement learning: A survey.
+18/21
+Fey, M., & Lenssen, J. E. (2019). Fast graph representation learning with pytorch geometric. https:
+//doi.org/10.48550/ARXIV.1903.02428
+Fr¨assle, S., Aponte, E. A., Bollmann, S., Brodersen, K. H., Do, C. T., Harrison, O. K., Harrison, S. J.,
+Heinzle, J., Iglesias, S., Kasper, L., Lomakina, E. I., Mathys, C., M¨uller-Schrader, M., Pereira, I.,
+Petzschner, F. H., Raman, S., Sch¨obi, D., Toussaint, B., Weber, L. A., . . . Stephan, K. E. (2021).
+TAPAS: An open-source software package for translational neuromodeling and computational
+psychiatry. Frontiers in Psychiatry, 12. https://doi.org/10.3389/fpsyt.2021.680811
+Friston, K. J. (2005). A theory of cortical responses. Philos. Trans. R. Soc. Lond. B Biol. Sci., 360(1456),
+815–836.
+Friston, K. J. (2008). Hierarchical models in the brain (O. Sporns, Ed.). PLoS Computational Biology,
+4(11), e1000211. https://doi.org/10.1371/journal.pcbi.1000211
+Friston, K. J. (2022). Computational psychiatry: From synapses to sentience. Molecular Psychiatry, 28(1),
+256–268. https://doi.org/10.1038/s41380-022-01743-z
+Friston, K. J., Parr, T., & de Vries, B. (2017). The graphical brain: Belief propagation and active inference.
+Network Neuroscience, 1(4), 381–414. https://doi.org/10.1162/netn a 00018
+Goddu, M. K., & Gopnik, A. (2024). The development of human causal learning and reasoning. Nature
+Reviews Psychology, 3(5), 319–339. https://doi.org/10.1038/s44159-024-00300-5
+Godwin*, J., Keck*, T., Battaglia, P., Bapst, V., Kipf, T., Li, Y., Stachenfeld, K., Veliˇckovi´c, P., &
+Sanchez-Gonzalez, A. (2020). Jraph: A library for graph neural networks in jax. (Version 0.0.1.dev).
+http://github.com/deepmind/jraph
+Heek, J., Levskaya, A., Oliver, A., Ritter, M., Rondepierre, B., Steiner, A., & van Zee, M. (2023). Flax: A
+neural network library and ecosystem for JAX (Version 0.7.5). http://github.com/google/flax
+Hoffman, M. W., Shahriari, B., Aslanides, J., Barth-Maron, G., Momchev, N., Sinopalnikov, D., Sta´nczyk,
+P., Ramos, S., Raichuk, A., Vincent, D., Hussenot, L., Dadashi, R., Dulac-Arnold, G., Orsini, M.,
+Jacq, A., Ferret, J., Vieillard, N., Ghasemipour, S. K. S., Girgin, S., . . . de Freitas, N. (2020).
+Acme: A research framework for distributed reinforcement learning. https://doi.org/10.48550/
+ARXIV.2006.00979
+Homan, M. D., & Gelman, A. (2014). The no-u-turn sampler: Adaptively setting path lengths in
+hamiltonian monte carlo. J. Mach. Learn. Res., 15(1), 1593–1623.
+Huys, Q. J. M., Maia, T. V., & Frank, M. J. (2016). Computational psychiatry as a bridge from neuroscience
+to clinical applications. Nature Neuroscience, 19(3), 404–413. https://doi.org/10.1038/nn.4238
+Iglesias, S., Kasper, L., Harrison, S. J., Manka, R., Mathys, C., & Stephan, K. E. (2021). Cholinergic and
+dopaminergic effects on prediction error and uncertainty responses during sensory associative
+learning. NeuroImage, 226, 117590. https://doi.org/10.1016/j.neuroimage.2020.117590
+Ji, W., & Kording, K. P. (2023, August). Bayesian models of perception and action. MIT Press.
+Kidger, P., & Garcia, C. (2021). Equinox: Neural networks in jax via callable pytrees and filtered
+transformations. https://doi.org/10.48550/ARXIV.2111.00254
+Kudithipudi, D., Aguilar-Simon, M., Babb, J., Bazhenov, M., Blackiston, D., Bongard, J., Brna, A. P., Raja,
+S. C., Cheney, N., Clune, J., Daram, A., Fusi, S., Helfer, P., Kay, L., Ketz, N., Kira, Z., Kolouri,
+S., Krichmar, J. L., Kriegman, S., . . . Siegelmann, H. (2022). Biological underpinnings for lifelong
+learning machines. Nature Machine Intelligence, 4(3), 196–210. https://doi.org/10.1038/s42256-
+022-00452-0
+Kumar, R., Carroll, C., Hartikainen, A., & Martin, O. (2019). ArviZ a unified library for exploratory
+analysis of bayesian models in python. Journal of Open Source Software, 4(33), 1143. https:
+//doi.org/10.21105/joss.01143
+Lawson, R. P., Mathys, C., & Rees, G. (2017). Adults with autism overestimate the volatility of the
+sensory environment. Nature Neuroscience, 20(9), 1293–1299. https://doi.org/10.1038/nn.4615
+Mart´ın Abadi, Ashish Agarwal, Paul Barham, Eugene Brevdo, Zhifeng Chen, Craig Citro, Greg S. Corrado,
+Andy Davis, Jeffrey Dean, Matthieu Devin, Sanjay Ghemawat, Ian Goodfellow, Andrew Harp,
+Geoffrey Irving, Michael Isard, Jia, Y., Rafal Jozefowicz, Lukasz Kaiser, Manjunath Kudlur, . . .
+19/21
+Xiaoqiang Zheng. (2015). TensorFlow: Large-scale machine learning on heterogeneous systems
+[Software available from tensorflow.org]. https://www.tensorflow.org/
+Mathys, C. (2011). A Bayesian foundation for individual learning under uncertainty. Frontiers in Human
+Neuroscience, 5(May), 1–20. https://doi.org/10.3389/fnhum.2011.00039
+Mathys, C., Lomakina, E. I., Daunizeau, J., Iglesias, S., Brodersen, K. H., Friston, K. J., & Stephan,
+K. E. (2014). Uncertainty in perception and the hierarchical gaussian filter. Frontiers in Human
+Neuroscience, 8. https://doi.org/10.3389/fnhum.2014.00825
+Mathys, C., & Weber, L. (2020). Hierarchical gaussian filtering of sufficient statistic time series for
+active inference. In Active inference (pp. 52–58). Springer International Publishing. https :
+//doi.org/10.1007/978-3-030-64919-7 7
+Matsakis, N. D., & Klock, F. S. (2014). The rust language. Ada Lett., 34(3), 103–104. https://doi.org/10.
+1145/2692956.2663188
+Mikulasch, F. A., Rudelt, L., Wibral, M., & Priesemann, V. (2023). Where is the error? hierarchical
+predictive coding through dendritic error computation. Trends in Neurosciences, 46(1), 45–59.
+https://doi.org/10.1016/j.tins.2022.09.007
+Millidge, B., Salvatori, T., Song, Y., Bogacz, R., & Lukasiewicz, T. (2022). Predictive coding: Towards a
+future of deep learning beyond backpropagation?
+Millidge, B., Seth, A., & Buckley, C. L. (2022). Predictive coding: A theoretical and experimental review.
+https://arxiv.org/abs/2107.12979
+Millidge, B., Tang, M., Osanlouy, M., Harper, N. S., & Bogacz, R. (2024). Predictive coding networks
+for temporal prediction (P. E. Latham, Ed.). PLOS Computational Biology, 20(4), e1011183.
+https://doi.org/10.1371/journal.pcbi.1011183
+Najarro, E., Sudhakaran, S., & Risi, S. (2023). Towards self-assembling artificial neural networks through
+neural developmental programs. https://doi.org/10.48550/ARXIV.2307.08197
+Oliver, B. M. (1952). Efficient coding. Bell System Technical Journal, 31(4), 724–750. https://doi.org/10.
+1002/j.1538-7305.1952.tb01403.x
+Oriol, A.-P., Virgile, A., Colin, C., Larry, D., J., F. C., Maxim, K., Ravin, K., Jupeng, L., C., L. C.,
+A., M. O., Michael, O., Ricardo, V., Thomas, W., & Robert, Z. (2023). Pymc: A modern and
+comprehensive probabilistic programming framework in python. PeerJ Computer Science, 9,
+e1516. https://doi.org/10.7717/peerj-cs.1516
+Ororbia, A., & Kifer, D. (2022). The neural coding framework for learning generative models. Nature
+Communications, 13(1). https://doi.org/10.1038/s41467-022-29632-7
+Paszke, A., Gross, S., Massa, F., Lerer, A., Bradbury, J., Chanan, G., Killeen, T., Lin, Z., Gimelshein, N.,
+Antiga, L., Desmaison, A., K¨opf, A., Yang, E., DeVito, Z., Raison, M., Tejani, A., Chilamkurthy,
+S., Steiner, B., Fang, L., . . . Chintala, S. (2019). Pytorch: An imperative style, high-performance
+deep learning library. https://doi.org/10.48550/ARXIV.1912.01703
+Powers, A. R., Mathys, C., & Corlett, P. R. (2017). Pavlovian conditioning–induced hallucinations result
+from overweighting of perceptual priors. Science, 357(6351), 596–600. https://doi.org/10.1126/
+science.aan3458
+Rao, R. P., & Ballard, D. H. (1999). Predictive coding in the visual cortex: A functional interpretation of
+some extra-classical receptive-field effects. Nat. Neurosci., 2(1), 79–87.
+Reed, E. J., Uddenberg, S., Suthaharan, P., Mathys, C. D., Taylor, J. R., Groman, S. M., & Corlett, P. R.
+(2020). Paranoia as a deficit in non-social belief updating. eLife, 9. https://doi.org/10.7554/elife.
+56345
+Rumelhart, D. E., Hinton, G. E., & Williams, R. J. (1986). Learning representations by back-propagating
+errors. Nature, 323(6088), 533–536. https://doi.org/10.1038/323533a0
+Salvatori, T., Pinchetti, L., M’Charrak, A., Millidge, B., & Lukasiewicz, T. (2023). Causal inference via
+predictive coding. https://doi.org/10.48550/ARXIV.2306.15479
+20/21
+Sandhu, T. R., Xiao, B., & Lawson, R. P. (2023). Transdiagnostic computations of uncertainty: Towards
+a new lens on intolerance of uncertainty. Neuroscience & Biobehavioral Reviews, 148, 105123.
+https://doi.org/https://doi.org/10.1016/j.neubiorev.2023.105123
+Senoz, I., & de Vries, B. (2020). Online message passing-based inference in the hierarchical gaussian filter.
+2020 IEEE International Symposium on Information Theory (ISIT). https://doi.org/10.1109/
+isit44484.2020.9173980
+Senoz, I., Podusenko, A., Akbayrak, S., Mathys, C., & de Vries, B. (2021). The switching hierarchical
+gaussian filter. 2021 IEEE International Symposium on Information Theory (ISIT). https:
+//doi.org/10.1109/isit45174.2021.9518229
+Vehtari, A., Gelman, A., & Gabry, J. (2016). Practical bayesian model evaluation using leave-one-out cross-
+validation and waic. Statistics and Computing, 27(5), 1413–1432. https://doi.org/10.1007/s11222-
+016-9696-4
+Weber, L. A., Waade, P. T., Legrand, N., Møller, A. H., Stephan, K. E., & Mathys, C. (2023). The
+generalized hierarchical gaussian filter. https://doi.org/10.48550/ARXIV.2305.10937
+Willard, B. T., & Louf, R. (2023). Efficient guided generation for large language models. https://doi.org/
+10.48550/ARXIV.2307.09702
+21/21

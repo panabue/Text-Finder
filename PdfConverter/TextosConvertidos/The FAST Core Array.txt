@@ -1,0 +1,1438 @@
+ 
+ 
+The FAST Core Array
+Peng Jiang1,2*, Rurong Chen1,2
+, Hengqian Gan1,2, Jinghai Sun1,2, Boqin Zhu1,2, Hui Li1,2, Weiwei
+Zhu1
+, Jingwen Wu1, Xuelei Chen1
+, Haiyan Zhang1,2, Tao An3
+1National Astronomical Observatories, Chinese Academy of Sciences, Beijing 100101, China
+2Guizhou Radio Astronomical Observatory, Guizhou University, Guiyang 550000, China
+3Shanghai Astronomical Observatory, Chinese Academy of Sciences, Shanghai 200030, China
+*Correspondence: pjiang@nao.cas.cn
+Received: December 25, 2023; Accepted: January 25, 2024; Published Online: March 8, 2024; https://doi.org/10.61977/
+ati2024012
+© 2024  Editorial  Office  of  Astronomical  Techniques  and  Instruments,  Yunnan  Observatories,  Chinese  Academy  of
+Sciences. This is an open access article under the CC BY 4.0 license (http://creativecommons.org/licenses/by/4.0/)
+Citation:  Jiang,  P.,  Chen,  R.  R.,  Gan,  H.  Q.,  et  al.  2024.  The  FAST  Core  Array.  Astronomical  Techniques  and
+Instruments, 1(2): 84−94. https://doi.org/10.61977/ati2024012.
+Abstract: The Five-hundred-meter Aperture Spherical Radio Telescope (FAST) Core Array is a proposed extension of
+FAST,  integrating  24  secondary  40-m  antennas  implanted  within  5  km  of  the  FAST  site.  This  original  array  design
+will  combine  the  unprecedented  sensitivity  of  FAST  with  a  high  angular  resolution  (4.3"  at  a  frequency  of  1.4  GHz),
+thereby  exceeding  the  capabilities  at  similar  frequencies  of  next-generation  arrays  such  as  the  Square  Kilometre  Array
+Phase  1  or  the  next-generation  Very  Large  Array.  This  article  presents  the  technical  specifications  of  the  FAST  Core
+Array, evaluates its potential relatively to existing radio telescope arrays, and describes its expected scientific prospects.
+The  proposed  array  will  be  equipped  with  technologically  advanced  backend  devices,  such  as  real-time  signal
+processing  systems.  A  phased  array  feed  receiver  will  be  mounted  on  FAST  to  improve  the  survey  efficiency  of  the
+FAST  Core  Array,  whose  broad  frequency  coverage  and  large  field  of  view（FOV） will  be  essential  to  study
+transient  cosmic  phenomena  such  as  fast  radio  bursts  and  gravitational  wave  events,  to  conduct  surveys  and  resolve
+structures  in  neutral  hydrogen  galaxies,  to  monitor  or  detect  pulsars,  and  to  investigate  exoplanetary  systems.  Finally,
+the  FAST  Core  Array  can  strengthen  China's  major  role  in  the  global  radio  astronomy  community,  owing  to  a  wide
+range of potential scientific applications from cosmology to exoplanet science.
+Keywords: FAST; Radio telescope; Interferometry; Synthesis array
+ 
+ 
+ 
+1.    INTRODUCTION
+The Five-hundred-meter Aperture Spherical Radio Tele-
+scope  (FAST),  completed  and  operational  since  February
+2020,  is  currently  the  largest  and  most  sensitive  single-
+dish radio telescope worldwide[1,2]. Its considerable diame-
+ter  and  favorable  location  in  a  deep  karst  depression,
+shielded  from  anthropogenic  radio  interferences,  have
+already  allowed  operating  scientists  to  produce  notewor-
+thy  scientific  discoveries  that  include  new  pulsars  detec-
+tion[3,4], fast radio bursts[5–9] and microquasars[10] investiga-
+tions,  and  analyses  of  neutral  atomic  hydrogen  (HI)  and
+interstellar  molecules[11,12].  The  sensitivity  of  FAST  at
+low  frequencies  exceeds  that  of  the  former  305-m
+Arecibo  telescope,  damaged  in  2020  and  subsequently
+decommissioned.
+However,  several  next-generation  radio  interferomet-
+ric arrays will be completed by 2035, representing increas-
+ing  international  competition  for  FAST.  Completion  of
+the
+ Square
+ Kilometre
+ Array
+ Phase
+ 1
+ (SKA1,
+Australia–South Africa) is scheduled for 2029[13], and that
+of the next-generation Very Large Array (ngVLA, United
+States  of  America)  by  2035[14].  Both  arrays  will  provide
+considerably  higher  sensitivity,  better  angular  resolution,
+and  faster  survey  speed  than  existing  instruments.
+Although  FAST  will  still  offer  the  highest  sensitivity,  its
+spatial resolution, constrained by its fixed single aperture,
+will  be  exceeded  by  the  SKA1  and  ngVLA.  Moreover,
+FAST  is  a  very  large  single-dish  telescope,  thus  calibra-
+tion,  accurate  imaging  of  complex  structures,  and  source
+localization themselves are challenging.
+To expand FAST capabilities by its integration into a
+synthesis  array,  the  FAST  Core  Array  was  proposed  by
+the  FAST  Operation  and  Development  Center.  The  main
+objectives  of  the  FAST  Core  Array  are  to  maintain
+China's  competitiveness  among  next-generation  radio
+astronomy  facilities  through  the  2030s  and  to  provide  a
+proof-of-concept  for  the  future  FAST  Array  (FASTA)  to
+acquire  invaluable  technical  experience  and  anticipate  po-
+tential problems during FASTA implementation[15]. Further-
+more,  once  FASTA  is  completed,  the  FAST  Core  Array
+antennas  can  complement  FASTA  with  shorter  baselines
+ 
+Astronomical Techniques and Instruments, Vol. 1, March 2024, 84–94
+ 
+Article
+Open Access
+ 
+ 
+ 
+to  improve  the  imaging  quality.  Finally,  the  FAST  Core
+Array  could  also  be  applied  to  follow-up  studies  of
+FASTA scientific discoveries.
+The radio quiet zone with a 30 km radius centered on
+FAST,  located  in  Guizhou  Province,  is  a  major  strategic
+advantage for the FAST Core Array. Radio frequency pro-
+tection  regulations  have  been  implemented[16]  to  mini-
+mize  electromagnetic  interference  from  human  activities
+during sensitive astronomical observations. In addition, opti-
+mization  of  flight  paths  over  FAST  effectively  prevents
+radio frequency interference from aircraft[17]. This high-qual-
+ity  radio  environment  was  achieved  through  substantial
+financial  investment  and  cross-sector  collaboration.  Con-
+structing the FAST Core Array in this protected zone will
+provide  nearly  ideal  electromagnetic  observation  condi-
+tions,  while  stimulating  local  economic  development
+around the FAST site. By maximizing the use of existing
+infrastructure,  the  Core  Array  will  take  full  advantage  of
+FAST sensitivity in an optimized radio environment.
+The  additional  antennas  will  function  as  a  synthesis
+aperture array when combined with FAST. Unfortunately,
+because of factors inherent to interferometric imaging and
+signal correlation, synthesis aperture arrays frequently suf-
+fer image sensitivity losses in comparison with single-dish
+telescopes.  For  interferometric  imaging,  the  number  of
+antennas required to ensure a FAST Core Array image sen-
+sitivity
+ comparable
+ with
+ FAST's
+ single-dish
+ mode
+(antenna efficiency Aeff = 0.65, system temperature Tsys =
+20 K[18]) can be estimated from their aperture. For exam-
+ple,  maintaining  the  sensitivity  level  would  require  4,  8,
+16,  24,  and  44  antennas  with  diameters  of  100  m,  70  m,
+50 m, 40 m, and 30 m, respectively. Cost scaling as a func-
+tion of antenna size is an important consideration, because
+the  cost  per  unit  collecting  area  increases  nonlinearly
+when  telescope  diameters  exceed  40  m.  Specifically,  the
+construction  cost  of  a  40-m  antenna  is  approximately  ten
+million RMB, whereas that of a 50-m antenna is approxi-
+mately  four  times  higher.  Moreover,  the  cost  of  backend
+equipment  depends  linearly  on  the  number  of  antennas,
+while  the  cost  of  data  storage  and  processing  depends  on
+that  number  squared.  Additionally,  the  beam  size  of  a
+40-m  aperture  antenna  is  comparable  with  the  FOV  of
+FAST's  current  19-beam  receiver.  Finally,  the  complex
+karst landscape surrounding FAST does not provide suffi-
+cient  space  to  accommodate  numerous  small  antennas,
+unlike  the  SKA1  or  ngVLA  sites.  Therefore,  considering
+cost  constraints,  sensitivity  requirements,  terrain  limita-
+tions,  and  necessary  integration  with  FAST,  a  40-m  aper-
+ture  was  selected  as  the  optimal  design  for  the  FAST
+Core Array antennas.
+The expected sensitivity of the FAST Core Array will
+be  approximately  3 000  m²/K  (40-m  antennas,  Aeff  =  0.7,
+Tsys  =  30  K),  nearly  twice  that  of  the  mid-frequency
+SKA1 component (1 560 m²/K, Aeff = 0.9, Tsys = 18 K[13,19])
+and comparable to the ngVLA specifications (3 050 m²/K,
+Aeff  =  0.828,  Tsys  =  17  K[20]).  Achieving  this  efficiency
+will ensure strong technological competitiveness.
+The  following  sections  describe  the  technical  array
+specifications, scientific motivation, key technological com-
+ponents  (antenna  design,  site  selection,  array  design,
+Phased  Array  Feed  (PAF)  receivers,  and  control  and  data
+centers),  and  scientific  research  objectives  of  the  FAST
+Core Array.
+ 
+2.    SCIENTIFIC
+ MOTIVATION
+ AND
+TECHNICAL SPECIFICATIONS
+ 
+2.1.    Scientific Motivation
+The  primary  scientific  motivation  for  the  FAST  Core
+Array  is  to  expand  FAST's  capabilities  for  high-resolu-
+tion  radio  image  acquisition  without  compromising  on  its
+exceptional  sensitivity,  thereby  improving  image  quality
+for  numerous  celestial  sources  and  expanding  the  scien-
+tific  scope  of  possible  research  beyond  that  of  FAST
+alone. Key science objectives include HI galaxies, contin-
+uum emission from radio galaxies, pulsars, transient radio
+phenomena  such  as  fast  radio  bursts  (FRBs)  or  gamma-
+ray  bursts,  and  radio  counterparts  of  gravitational  wave
+events.  Additionally,  the  FAST  Core  Array  will  acquire
+spectroscopic  observations  for  enhanced  analysis  of  phe-
+nomena involving interstellar molecules, such as hydroxyl
+masers (Section 4).
+ 
+2.2.    Technical Specifications
+The FAST Core Array combines FAST with 24 addi-
+tional  40-m  diameter  antennas  positioned  within  a  5-km
+radius from FAST. The first phase aims to deploy six anten-
+nas  by  2026.  In  this  first-phase  configuration,  the
+achieved angular resolution will be 4.3" at a frequency of
+1.4  GHz.  The  full-scale  FAST  Core  Array  (Table  1)  is
+expected by 2030. FAST is currently equipped with a 19-
+beam  receiver[18]  with  an  FOV  comparable  to  the  beam
+size  (18'  at  1.4  GHz)  of  a  40-m  antenna.  The  40-m
+antenna pointing accuracy is approximately 15", with a min-
+imum elevation of 5°. In comparison, FAST's pointing accu-
+racy  is  8",  with  a  minimum  elevation  of  50°.  Therefore,
+the  overall  sky  coverage  achievable  with  the  FAST  Core
+Array  will  be  primarily  determined  by  the  fraction  of  the
+sky accessible to FAST. By combining FAST with 24 sec-
+ondary  40-m  antennas,  the  synthesized  array  sensitivity
+and  angular  resolution  will  markedly  improve  on  FAST's
+single-dish performance.
+The expected efficiency of the FAST Core Array anten-
+nas  is  approximately  0.7,  with  a  system  temperature  of
+30 K in the L band. In comparison, antenna efficiency for
+ 
+Table 1. Key technical specifications of the FAST Core Array
+Aeff/Tsys (m2/K @1.4 GHz)
+~ 3 000
+Frequency range/GHz
+0.35–10
+Max baseline/km
+~ 10
+Resolution (arcsec @1.4 GHz)
+~ 4.3
+FOV (arcmin @1.4 GHz)
+18
+ 
+ 
+ 
+Astronomical Techniques and Instruments,  1(2): 84–94, 2024　85
+the  central  beam  of  FAST's  current  19-beam  receiver  is
+0.65,  with  a  system  temperature  of  20  K.  With  24  sec-
+ondary antennas combined with FAST, the overall sensitiv-
+ity  of  the  FAST  Core  Array  (Aeff/Tsys)  should  reach
+3 000  m²/K.  Even  without  FAST,  the  sensitivity  of  the
+array  comprising  only  the  24  secondary  antennas  would
+be 703 m²/K, approximately 3.5 times that of the Karl G.
+Jansky  VLA[21]  and  1.5  times  that  of  the  Meer  Karoo
+Array Telescope (MeerKAT[19]).
+ 
+3.    KEY
+ TECHNOLOGICAL
+ COMPON-
+ENTS
+ 
+3.1.    Secondary Antenna Design
+Each 40-m antenna (Table 2) follows a primary focus
+design  with  a  focal-to-diameter  ratio  of  0.375.  The  entire
+antenna  assembly  weighs  approximately  400  tons.  It  con-
+sists of three primary subsystems: the antenna feed subsys-
+tem,  structural  subsystem,  and  servo  subsystem.  The
+antenna schematic structure is illustrated in Fig. 1.
+The  antenna  feed  subsystem  comprises  the  antenna
+reflector  and  the  feed  cabin.  The  central  20-m  region  of
+the  main  reflector  is  plated  with  solid  aluminum  surface
+panels.  The  outer  region  is  covered  with  stainless-steel
+wire  mesh  surface  panels  supported  by  aluminum  ribs.
+The main reflector is divided into 11 concentric zones, rein-
+forced  with  stainless-steel  wire  mesh  and  aluminum  ribs
+and assembled from sets of 12 and 24 panels for the inner-
+most  zones  and  48  panels  for  each  of  the  remaining  nine
+zones,  representing  a  total  of  468  panels.  With  accessible
+elevations  within  5°–90°,  surface  shape  accuracy  of  the
+full  aperture  for  a  single  antenna  is  better  than  3  mm
+(rms),  within  observational  requirements  at  frequencies  of
+up  to  10  GHz.  Combined  implementation  of  solid  and
+mesh panels in the central and outer regions of the reflec-
+tor,  respectively,  is  a  compromise  to  achieve  the  required
+collecting  area  while  both  constraining  structural  proper-
+ties and ensuring that the antennas will withstand weather
+conditions  through  the  operational  lifetime  of  the  FAST
+Core Array.
+ 
+ 
+Feed
+cabin
+Tower base
+Reflector support
+Pedestal
+Fig. 1. Schematic structural diagram of a 40-m antenna to be integrated in the FAST Core Array.
+ 
+ 
+ 
+Table 2. Main technical specifications of a single antenna
+Aperture/m
+40
+f/D ratio
+0.375
+Resolution (arcmin @21 cm)
+18
+Frequency range/GHz
+0.35–10
+Aeff/Tsys (m2/K @L band)
+29.3
+Pointing/(")
+15
+Min elevation/(°)
+5
+ 
+The  feed  cabin  is  supported  by  four  columns  located
+at the focal point of the main reflector. Its dimensions are
+4 m × 4 m × 1.6 m. It houses a feed turntable, on which
+several  multiple-band  feeds  and  receivers  are  installed
+(Table 3).
+Each antenna will be equipped with three sets of cus-
+tomizable feeds (Fig. 2) to optimize sensitivity across differ-
+ent  frequency  ranges.  Each  feed  provides  illumination
+within  an  angle  of  approximately  140°,  with  associated
+low-noise  amplifiers  operating  at  room  temperature.
+Besides  the  feeds  and  low-noise  amplifiers,  the  receivers
+include  90°  couplers,  filters,  isolators,  amplifier  groups,
+mixers,  and  analog-to-digital  conversion  modules.  First,
+dual-linearly  polarized  signals  from  the  feeds  are  con-
+ 
+ 
+ 
+86　www.ati.ac.cn
+verted  to  dual-circular  polarizations  with  a  90°  coupler,
+and then digitized. The digitized signals are then transmit-
+ted  by  optical  fiber  to  the  array  data  center  for  correla-
+tion, calibration, imaging, and analysis.
+The  structural  subsystem  comprises  the  main  reflec-
+tor  support,  feed  cabin  support,  antenna  pedestal,  and
+tower base. The main reflector support consists of 24 pri-
+mary  and  24  secondary  radial  beams,  with  additional
+radial and diagonal struts. Feed cabin support uses a rectan-
+gular  beam  structure  with  four  legs  distributed  in  a  plane
+inclined  at  45°  from  the  elevation  surface.  The  antenna
+pedestal  uses  an  azimuth-elevation  turntable  for  pointing,
+with an azimuthal operational range of ±270° and an eleva-
+tion operational range of 5°–90°. Azimuthal angular veloc-
+ity  is  within  requirements  (0.003°/s–1°/s),  with  a  maxi-
+mum  angular  acceleration  of  0.3°/s².  Elevation  angular
+velocity  is  also  within  requirements  (0.001°/s–1°/s),  with
+a maximum angular acceleration of 0.3°/s².
+The servo  subsystem is designed  for  antenna steering
+and  control.  It  comprises  an  antenna  control  unit,  a  drive
+control unit, drive motors, an axis-angle encoder unit, and
+a  safety  protection  unit.  During  operation,  the  status  of
+each  antenna  can  be  monitored  and  controlled  remotely
+with the central control system located in the telescope con-
+trol center (Section 3.4).
+Finally,  a  dedicated  shielded  control  room,  associ-
+ated  with  each  antenna,  will  house  a  local  antenna  con-
+trol unit, a time-frequency unit, and the local digital back-
+end.
+ 
+3.2.    Site Selection and Array Design
+The area surrounding FAST is characterized by a com-
+plex  karst  topography.  Therefore,  preliminary  site  selec-
+tion  for  the  FAST  Core  Array  must  simultaneously
+account  for  several  major  geological,  infrastructural,  and
+observational  constraints.  Specifically,  locations  conve-
+nient for construction logistics and with assured access to
+essential utilities such as water, electricity, and transporta-
+tion  were  prioritized.  Additionally,  potential  topographic
+obstructions were considered and avoided to reduce limita-
+tions  on  antenna  elevation  and  to  increase  observational
+sky coverage. Within these constraints, 35 preliminary loca-
+tions were identified during site selection, with seven poten-
+tial  sites  classified  as  highly  suitable  (Fig.  3,  red  circles),
+sixteen as moderately suitable (Fig. 3, orange circles), and
+twelve as low-suitability sites (Fig. 3, green circles).
+ 
+ 
+Low
+High
+Moderate
+Fig.  3. Preliminary  site  selection  for  the  FAST  Core  Array.
+Candidates  are  located  within  5  km  (white  circle)  of  FAST.
+They  are  classified  by  suitability:  high  (red  filled  circles),
+moderate (orange), and low (green).
+ 
+The  design  of  the  FAST  Core  Array  interferometric
+configuration  was  carefully  determined,  primarily  on  the
+ 
+Table 3. Feed technical specifications for a single antenna
+Frequency/GHz
+Feed form
+Feed size/cm
+Cryogenic
+Tsys/K
+0.35–1.05
+Circular eleven
+55×19
+No
+50–150
+1.1–3.3
+Coaxial corrugated horn
+65×150
+No
+30
+3.3–10
+Quad-ridge flared horn
+60×100
+No
+35
+ 
+~190 mm
+~650 mm
+~300 mm
+~1 200 mm
+~230 mm
+~1 000 mm
+~600 mm
+~550 mm
+Phase center
+Interface
+Phase center to interface ~115 mm
+Angle ~140°
+Phase center
+Phase center
+Phase center to interface ~71 mm
+Polarizer interface
+Horn interface
+Phase center to horn interface
+Angle ~140°
+~40 mm
+Angle ~140°
+Interface
+Feed 2: Coaxial corrugated horn
+Feed 3: Quad-ridge flared horn
+Feed 1: Circular eleven
+ 
+Fig. 2. Preliminary design diagrams for three single-antenna tentative feeds. Phase centers are indicated by filled red circles.
+ 
+ 
+ 
+Astronomical Techniques and Instruments,  1(2): 84–94, 2024　87
+basis  of  scientific  objectives  and  planned  observation
+modes,  to  maximize  imaging  quality  and  efficiency.
+Because  primary  observational  targets  of  the  FAST  Core
+Array  include  celestial  objects  with  low  surface  bright-
+ness, optimizing the array design is critical to conduct effi-
+cient  surveys,  particularly  for  short  baselines  (within
+5 km of the FAST site).
+In  this  context,  a  Reuleaux  triangle  configuration  is
+well-suited  to  maximize  sidelobe  suppression.  To  assess
+the  feasibility  of  this  configuration  for  the  FAST  Core
+Array, 24 of the 35 preliminary locations were selected as
+potential sites for antenna implantation (Fig. 4).
+Subsequently,  observation  simulations  were  con-
+ducted  for  a  celestial  source  at  a  declination  of  30°,  with
+acquisition  times  between  12  min  and  4  h.  Resulting  UV
+(spatial frequencies in the E–W and N–S directions) cover-
+age  and  dirty  beam  are  illustrated  in  Fig.  5  (Columns  1
+and 2, respectively). Point-spread-function profiles demon-
+strated  excellent  sidelobe  suppression  in  this  configura-
+tion  (Fig.  5,  Column  3),  to  below  5%  for  a  2-h  observa-
+tion  (Fig.  5,  Panel  E3).  This  is  within  requirements  for
+most  imaging  observations.  Moreover,  a  12-min  simula-
+tion  also  exhibited  acceptably  uniform  UV  coverage  with
+sidelobes suppressed at the 10% level, within the require-
+ments  for  rapid  survey  observations.  In  equal  bandwidth
+conditions,  this  implies  that  image  sensitivity  of  the
+FAST  Core  Array  for  an  acquisition  time  of  12  min
+should  be  an  order  of  magnitude  higher  than  that  of  the
+“Faint Images of the Radio Sky at Twenty Centimeters” sur-
+vey (acquisition time: 3 min) conducted with the VLA[22].
+Among the 24 potential sites initially selected, six opti-
+mal locations were chosen for the proof-of-concept precur-
+sor  array  (six  40-m  antennas).  Their  geographic  distribu-
+tion  around  FAST  and  the  resulting  baseline  lengths  are
+illustrated  on  the  topographic  map  in  Fig.  6  (sites  Fea-1
+to  Fea-6).  At  the  time  of  writing,  final  antenna  positions
+have  been  selected  at  two  sites  (Fea-1  and  Fea-2,  red
+stars, Fig. 6) where antenna construction is underway.
+Scientists  of  the  FAST  Core  Array  team  intend  to
+expand  the  number  of  potential  antenna  sites  near  FAST
+to fully optimize the final Core Array configuration, if pos-
+sible,  by  achieving  a  final  selection  of  100  suitable
+options.  Furthermore,  data  reduction  studies  are  planned
+ 
+EW offset/m
+NS offset/m
+−4 000
+−4 000
+−2 000
+0
+2 000
+4 000
+−2 000
+0
+2 000
+4 000
+Fig.  4. Preliminary  design  for  the  FAST  Core  Array,
+illustrating the positions of the 24 most suitable candidate sites
+within  5  km  of  FAST  (radial  distance  indicated  by  the  red
+concentric circles).
+ 
+12 min
+A1
+A2
+A3
+B1
+B2
+B3
+−10
+−8
+−8
+−6
+−4
+−2
+0
+2
+4
+6
+8
+−6
+−4
+−2
+0
+2
+4
+6
+km
+−50
+−40
+−40
+−30
+−20
+−10
+0
+10
+20
+30
+30
+(")
+(")
+40
+−30
+−20
+−10
+0
+10
+20
+30
+−250
+0
+−200−150−100 −50
+0
+100
+50
+150
+10
+20
+30
+40
+50
+60
+70
+80
+90
+(%)
+30 min
+−10
+−8
+−8
+−6
+−4
+−2
+0
+2
+4
+6
+8
+km
+km
+−6
+−4
+−2
+0
+2
+4
+6
+km
+−50
+−40
+−40
+−30
+−20
+−10
+0
+10
+20
+40
+−30
+−20
+−10
+0
+10
+20
+30
+−250
+0
+−200−150−100 −50
+0
+100
+50
+150
+10
+20
+30
+40
+50
+60
+70
+80
+90
+(%)
+−2
+0
+4
+6
+0
+10
+20
+30
+40
+50
+60
+70
+80
+90
+(")
+(")
+200 (")
+200 (")
+ 
+ 
+ 
+ 
+88　www.ati.ac.cn
+as  part  as  the  current  feasibility  research  to  improve  the
+imaging quality and efficiency of the FAST Core Array.
+ 
+3.3.    PAF Receivers
+The aperture of a telescope determines the size of its
+beam.  FAST  has  an  effective  aperture  of  300  m,  result-
+ing  in  a  beam  size  of  3'  at  1.4  GHz.  To  enhance  survey
+efficiency,  FAST  is  coupled  with  a  19-beam  horn
+receiver, expanding the FOV to 19 times the nominal sin-
+gle-beam  size.  However,  the  frequency  range  of  the  horn
+receiver  is  narrow  (currently  1.05–1.45  GHz),  which  lim-
+its the achievable scientific objectives.
+PAF  receivers[24]  are  the  next  generation  of  radio
+receivers, with three main advantages over standard multi-
+beam  horn  feed  receivers.  First,  horn  feeds  are  con-
+strained  by  their  physical  size,  with  gaps  between  adja-
+cent  beams  requiring  multiple  observations  of  the  same
+field  to  achieve  full  coverage.  Conversely,  PAF  receivers
+generate  beams  in  mathematical  space,  allowing  for  spa-
+tial  overlap  and  providing  continuous  sampling  of  the
+focal  plane.  Second,  PAF  receivers  achieve  frequency
+ratios  of  up  to  1:3,  significantly  broadening  the  available
+frequency  range  compared  with  that  of  FAST's  current
+19-beam  receiver.  Finally,  PAF  receivers  provide  a
+markedly  improved  illumination  function  directly  related
+to  the  main  reflector  characteristics,  yielding  higher  aper-
+ture efficiency.
+In  addition  to  the  existing  19-beam  horn  receiver,  a
+wide-field, broadband PAF receiver will be developed for
+FAST. It will include advanced signal processing technol-
+ogy  such  as  low-loss  wideband  feeds,  new-generation
+room-temperature  amplifiers,  digital  beamforming  algo-
+ 
+C1
+C2
+C3
+D1
+D2
+D3
+E1
+E2
+E3
+30
+30
+30
+30
+(")
+(")
+(")
+−10
+−8
+−8
+−6
+−4
+−2
+0
+4
+6
+8
+−6
+−4
+−2
+0
+−50
+−40
+−40
+−30
+−20
+−10
+0
+10
+20
+40
+−30
+−20
+−10
+0
+10
+−250
+0
+−200−150−100 −50
+0
+100
+50
+150
+10
+20
+30
+40
+50
+60
+1 h
+−10
+−8
+−8
+−6
+−4
+−2
+0
+2
+4
+6
+8
+km
+−6
+−4
+−2
+0
+2
+4
+6
+km
+−50
+−40
+−40
+−30
+−20
+−10
+0
+10
+20
+40
+−30
+−20
+−10
+0
+10
+20
+30
+−250
+0
+−200−150−100 −50
+0
+100
+50
+150
+10
+20
+30
+40
+50
+60
+70
+80
+90
+(%)
+2 h
+−10
+−8
+−8
+−6
+−4
+−2
+0
+2
+4
+6
+8
+km
+−6
+−4
+−2
+0
+2
+4
+6
+km
+−50
+−40
+−40
+−30
+−20
+−10
+0
+10
+20
+40
+−30
+−20
+−10
+0
+10
+20
+30
+−250
+0
+−200−150−100 −50
+0
+100
+50
+150 200
+10
+20
+30
+40
+50
+60
+70
+80
+90
+(%)
+4 h
+−10
+−8
+−8
+−6
+−4
+−2
+0
+2
+4
+6
+8
+km
+−6
+−4
+−2
+0
+2
+4
+6
+km
+−50
+−40
+−40
+−30
+−20
+−10
+0
+10
+20
+40
+−30
+−20
+−10
+0
+10
+20
+30
+(")
+(")
+(")
+−250
+0
+−200−150−100 −50
+0
+100
+50
+150 200 (")
+(")
+200 (")
+200
+10
+20
+30
+40
+50
+60
+70
+80
+90
+(%)
+ 
+Fig. 5. UV coverage (spatial frequencies in the E–W and N–S directions, Column 1), dirty beam (Column 2), and point-spread-
+function profile (Column 3) of the FAST Core Array for a source at a declination of 30°, with different acquisition times: 12 min,
+30 min, 1 h, 2 h, and 4 h (Rows A–E, respectively). The software iAntConfig[23] was used to optimize array configuration and to
+generate the plots.
+ 
+ 
+ 
+Astronomical Techniques and Instruments,  1(2): 84–94, 2024　89
+rithms, and high-speed digital terminals. The available fre-
+quency  coverage  will  increase  to  1–3  GHz,  with  a
+receiver  noise  temperature  lower  than  30  K  and  a  FOV
+wider  than  0.25  (°)2.  Implementing  the  PAF  receiver  on
+FAST  should  enhance  its  single-dish  survey  efficiency,
+diversify  its  scientific  targets,  and  expand  its  FOV  to  a
+value  comparable  with  that  of  the  40-m  secondary  anten-
+nas,  thereby  improving  the  observation  efficiency  of  the
+FAST Core Array.
+ 
+3.4.    Telescope Control and Data Center
+Observational signals collected by each antenna are dig-
+itized  in  the  local  digital  backend.  The  digitization  pro-
+cess occurs locally, enhancing signal resilience to interfer-
+ence during transmission compared with analog signals. Fur-
+thermore, the digitized signals are time-stamped at each sta-
+tion  before  transmission  to  avoid  phase  errors  during
+long-distance optical fiber transmission, and then transmit-
+ted  to  the  array  correlator.  Finally,  after  processing  at  the
+correlator  center,  the  data  products  are  archived  at  the
+data storage center (Fig. 7).
+FAST  Core  Array  facilities  include:  a  telescope  con-
+trol  center,  equipped  with  an  array  monitoring  and  con-
+trol  system;  a  time-frequency  service  system;  a  correlator
+center; and a data storage center. Observational data, con-
+trol  data,  time-frequency  standard  signals,  and  all  addi-
+tional data relevant to interferometric observations are trans-
+mitted  through  optical  fibers  connecting  the  control  cen-
+ter  with  each  antenna  control  room.  Current  high-preci-
+sion,  stable-phase  optical  fiber  technology  ensures  accu-
+rate  synchronization  of  time-frequency  signals  between
+the  control  room  and  each  antenna.  Overall  array  control,
+as  well  as  diagnostics  for  the  receivers,  digital  backends,
+and operation status of the time-frequency system at each
+station  are  conducted  by  the  central  control  system
+located at the telescope control center.
+The  correlator  is  a  critical  component  of  the  FAST
+Core  Array.  Each  array  antenna  generates  baseband  data
+streams  that  necessitate  a  dedicated  hardware  correlator
+for  real-time  processing.  Because  of  the  substantial  num-
+ber of antennas in the array (25 in total) and of computa-
+tion time and sidelobe minimization constraints, the correla-
+tor  will  operate  in  the  FX  mode,  in  which  input  signals
+are first Fourier-transformed (F) then cross-multiplied (X),
+and  perform  real-time  correlation  of  the  baseband  data
+streams[25].
+ 
+ 
+Fig.  6. Distribution  of  the  six  optimally  located  antennas  for  the  precursor  array  (first  phase  of  the  FAST  Core  Array),
+superimposed  on  an  elevation  map  around  the  FAST  location  (darker  colors  for  low  elevations,  lighter  colors  for  higher
+elevations). Positions Fea-1, 2, 3, 4, 5, and 6 correspond to potential sites 2, 11, 24, 21, 22, and 19, respectively, in Fig. 4.
+ 
+ 
+ 
+90　www.ati.ac.cn
+The  FAST  Core  Array  correlator  operates  in  three
+modes:  correlation  processing,  phased  array,  and  Very
+Long  Baseline  Interferometry  (VLBI).  Baseband  data
+streams first enter the F module and undergo delay compen-
+sation, Fourier transform, and quantization to produce chan-
+nelized  data  streams,  which  then  enter  the  X  module
+through  high-speed  switches.  On  each  channel,  data  from
+all  possible  antenna  pairs  are  multiplied  and  temporally
+averaged  to  derive  the  baseline  visibility  functions  subse-
+quently  used  for  image  processing.  In  the  phased  array
+mode, the X module stores the autocorrelation function of
+each  antenna.  After  delay  compensation,  the  autocorrela-
+tion functions are used for phased beamforming, thus effec-
+tively  considering  the  FAST  Core  Array  as  a  larger  sin-
+gle-dish  telescope,  which  increases  its  effective  aperture
+by  42%.  This  mode  is  suitable  for  observations  with
+extreme sensitivity requirements. In the VLBI mode, base-
+band data streams undergo delay compensation and quanti-
+zation  without  Fourier  transform.  Delayed  baseband  data
+are treated as single-station data and combined with base-
+band data from other stations for correlation processing.
+The  correlator  size  will  increase  as  construction  pro-
+gresses. The F module size, determined by the total num-
+ber  of  antennas,  will  use  a  field-programmable  gate  array
+for  baseband  data  stream  channelization.  The  X  module
+size,  depending  on  the  number  of  antennas,  bandwidth,
+and number of channels, will use graphics processing unit
+(GPU)  servers  for  multiplication  and  summation  opera-
+tions on the channelized data streams.
+ 
+4.    SCIENTIFIC RESEARCH
+Implementation  of  the  FAST  Core  Array  is  intended
+to  strengthen  FAST's  position  at  the  forefront  of  global
+radio astronomy, by maintaining its extremely high sensitiv-
+ity while enhancing its high-resolution imaging capacity.
+(1)  Advancing  FRB  and  pulsar  science.  The  array's
+high  sensitivity  provides  a  major  advantage  to  detect  fast
+radio  bursts[26,27],  magnetars[28,29],  and  pulsars[30].  Unlike
+the VLA or similar arrays, which rely on coherent synthe-
+sis of multiple antennas for FRB or pulsar detection sensi-
+tivity,  the  FAST  Core  Array,  with  its  large,  highly  sensi-
+tive antennas, directly provides sufficient detection sensitiv-
+ity.  Using  preliminary  detection  and  arcminute  localiza-
+tion of bursts and pulsars with FAST's PAF receivers, tar-
+geted  antenna  correlation  processing  yielded  considerable
+improvement on the source location precision (at the arcsec-
+ond  level[31]).  By  imaging  FRB  and  pulsar  environments
+with  unprecedented  detail[32],  the  FAST  Core  Array  will
+provide  essential  information  on  the  origin  and  evolution
+of FRBs and pulsars.
+(2)  Resolving  the  structure  of  HI  galaxies.  The
+strongly  enhanced  mapping  resolution  of  the  FAST  Core
+Array  (of  the  order  of  arcseconds)  relative  to  FAST  (3')
+will be essential to resolve complex structures in HI galax-
+ies[33–35]. It will allow for the identification of finer struc-
+tural  features,  such  as  galactic  disks,  tails,  bridges,  and
+streams[36,37],  and  will  contribute  to  the  high-precision
+study  of  galactic  component  distributions  (including  gas,
+stars, and dark matter)[38–40].
+(3)  Mapping  the  cosmic  evolution  of  radio  galaxies.
+Because  of  its  high  sensitivity  and  resolution,  the  FAST
+Core  Array  will  detect  extremely  large  populations  of
+radio  galaxies[41]  and  allow  for  extensive  statistical  stud-
+ies of their evolution and morphology as a function of cos-
+mic  time[42–44].  Such  studies  will  be  essential  to  address
+major  questions  on  radio  galaxies,  for  example  the  influ-
+ence  of  galaxy  mergers,  supernovae,  supermassive  black
+holes, and star formation processes on the morphology of
+radio galaxies at different redshifts[45–47].
+(4)  Investigating  transient  phenomena.  The  FAST
+Core Array will extend FAST's major contribution to inves-
+tigations of the transient universe by providing crucial cali-
+bration  capabilities  for  follow-up  radio  observations,  flux
+ 
+Monitoring
+system
+Antenna 1#
+Control
+Digital
+Antenna 2#
+Control
+Digital
+Antenna 3#
+Control
+Digital
+Antenna n#
+Control
+Digital
+Time/freq.
+system
+Communication
+system
+Correlator
+Data storage
+Time/freq.
+Time/freq.
+Time/freq.
+Time/freq.
+terminal
+terminal
+terminal
+terminal
+ 
+Fig.  7. Schematic  diagram  of  the  signal  processing  chain  in  the  FAST  Core  Array,  from  the  single  antenna  to  the  telescope
+control and data center.
+ 
+ 
+ 
+Astronomical Techniques and Instruments,  1(2): 84–94, 2024　91
+density  measurements,  and  subarcsecond  localization  of
+energetic  events  such  as  supernovae,  gamma-ray  bursts,
+or  neutron  stars  mergers[48–54].  Thus,  the  FAST  Core
+Array  will  improve  our  understanding  of  relativistic  jets,
+shockwaves,  and  powerful  outflows  associated  with  these
+transient phenomena[55,56].
+(5)  Detecting  exoplanetary  radio  bursts.  With  its
+unprecedented  sensitivity,  the  FAST  Core  Array  could
+detect brown dwarfs or giant exoplanets. This would consti-
+tute  the  first  possibility  to  investigate  exoplanetary  mag-
+netic fields, rotation rates, star-planet interactions, and habit-
+ability
+ with
+ observations
+ acquired
+ at
+ radio
+wavelengths[57–60].
+(6)  Identifying  tidal  disruption  events.  The  FAST
+Core Array has the potential to detect and monitor the evo-
+lution  of  relativistic  jets  triggered  by  tidal  disruption
+events[61–63]  when  stars  approaching  a  black  hole  are
+destroyed  by  its  gravitational  force.  Tracking  jet  forma-
+tion  at  subparsec  scales  would  provide  valuable  insights
+into  magnetohydrodynamics  and  accretion  physics  near
+the event horizon[64,65].
+(7)  Contributing  to  deep  space  exploration.  In  addi-
+tion  to  radio  astronomy,  the  FAST  Core  Array  is
+expected to contribute to deep space science[66]: space situa-
+tional awareness, detection of small space targets, communi-
+cation and control of deep space probes, ionospheric mea-
+surements, and improvement of pulsar timing standards. It
+will also contribute to studies of solar system objects and
+galactic  magnetic  field  mapping  using  diffuse  syn-
+chrotron imaging.
+ 
+5.    SUMMARY
+This  article  described  the  FAST  Core  Array  project.
+It  includes  the  planned  integration  of  the  FAST  instru-
+ment into a synthesis aperture array and comprising 24 sec-
+ondary  40-m  antennas  located  within  5  km  of  the  FAST
+site.  By  combining  FAST's  exceptional  sensitivity  with
+the  high  resolution  provided  by  the  interferometer  and  by
+using  state-of-the-art  technology,  notable  discoveries  are
+expected  for  pulsars,  FRBs,  HI  galaxies,  exoplanets,  and
+cosmology.  Rapid  implementation  will  allow  the  FAST
+Core  Array  to  strengthen  FAST's  major  global  position
+among  radio  astronomy  facilities  before  the  FASTA
+project  becomes  operational,  providing  new  opportunities
+to study dynamic phenomena in the universe.
+ 
+ACKNOWLEDGEMENTS
+This  work  was  supported  by  the  National  Key  R&D
+Program  of  China  (2022YFA1602904),  the  Chinese
+Academy  of  Sciences  Project  for  Young  Scientists  in
+Basic Research (YSBR-063), and the National Natural Sci-
+ence Foundation of China (12225303 and 12041301).
+ 
+AUTHOR CONTRIBUTIONS
+Peng Jiang conceived the idea, and played the project
+administration  and  supervision  role.  Rurong  Chen  wrote
+the  original  draft  and  used  software  for  simulation  analy-
+sis. Hengqian Gan, Jinghai Sun, Boqin Zhu and Hui Li pro-
+vided  the  conceptual  design.  Weiwei  Zhu,  Jingwen  Wu,
+Xuelei Chen, Haiyan Zhang and Tao An provided investiga-
+tion support. Peng Jiang and Tao An reviewed and edited
+the  manuscript.  All  the  authors  read  and  approved  the
+final manuscript.
+ 
+DECLARATION OF INTERESTS
+Peng Jiang is an editorial board member for Astronomi-
+cal  Techniques  and  Instruments  and  was  not  involved  in
+the editorial review or the decision to publish this article.
+The authors declare no competing interests.
+REFERENCES 
+ Nan, R. D., Li, D., Jin, C. J., et al. 2011. The Five-hundred
+Aperture  Spherical  radio  Telescope  (FAST)  project.
+International  Journal  of  Modern  Physics  D,  20(6):
+989−1024.
+[1]
+ Jiang,  P.,  Yue,  Y.  L.,  Gan,  H.  Q.,  et  al.  2019.
+Commissioning  progress  of  the  FAST.  Science  China
+Physics Mechanics & Astronomy, 62(5): 959502.
+[2]
+ Han, J. L., Wang, C., Wang, P. F., et al. 2021. The FAST
+galactic plane pulsar snapshot survey: I project design and
+pulsar discoveries. Research in Astronomy and Astrophysics,
+21(5): 107.
+[3]
+ Pan, Z. C., Lu, J. G., Jiang, P., et al. 2023. A binary pulsar in
+a 53-minute orbit. Nature, 620: 961−964.
+[4]
+ Lin, L., Zhang, C. F., Wang, P., et al. 2020. No pulsed radio
+emission  during  a  bursting  phase  of  a  Galactic  magnetar.
+Nature, 587: 63−65.
+[5]
+ Luo,  R.,  Wang,  B.  J.,  Men,  Y.  P.,  et  al.  2020.  Diverse
+polarization angle swings from a repeating fast radio burst
+source. Nature, 586: 693−696.
+[6]
+ Li, D., Wang, P., Zhu, W. W., et al. 2021. A bimodal burst
+energy  distribution  of  a  repeating  fast  radio  burst  source.
+Nature, 598: 267−271.
+[7]
+ Feng,  Y.,  Li,  D.,  Yang,  Y.  P.,  et  al.  2022.  Frequency-
+dependent  polarization  of  repeating  fast  radio  bursts-
+implications for their origin. Science, 375: 1266.
+[8]
+ Niu, C. H., Aggarwal, K., Li, D., et al. 2022. A repeating
+fast  radio  burst  associated  with  a  persistent  radio  source.
+Nature, 606: 873−877.
+[9]
+ Tian,  P.  F.,  Zhang,  P.,  Wang,  W.,  et  al.  2023.  Subsecond
+periodic  radio  oscillations  in  a  microquasar.  Nature,  621:
+271−275.
+[10]
+ Ching,  T.  C.,  Li,  D.,  Heiles,  C.,  et  al.  2022.  An  early
+transition  to  magnetic  supercriticality  in  star  formation.
+Nature, 601: 49−52.
+[11]
+ Xu,  C.  K.,  Cheng,  C.,  Appleton,  P.  N.,  et  al.  2022.  A  0.6
+Mpc  H  I   structure  associated  with  Stephan's  Quintet  .
+Nature, 610: 461−466.
+[12]
+ Dewdney,  P.,  Turner,  W.,  Braun  R.,  et  al.  2016.  SKA1
+system baseline design v2. https://www.skao.int/sites/default/
+files/documents/d1-SKA-TEL-SKO-0000002_03_SKA1
+SystemBaselineDesignV2_1.pdf.
+[13]
+ Murphy, E. J., Bolatto, A., Chatterjee, S., et al. The ngVLA
+[14]
+ 
+ 
+ 
+92　www.ati.ac.cn
+science
+ case
+ and
+ associated
+ science
+ requirements.
+arXiv:1810.07524.
+ Xue,  M.  G.,  Zhu,  W.  W.,  Wu,  X.  P.,  et  al.  2023.  Pulsar
+discovery prospect of FASTA. Research in Astronomy and
+Astrophysics, 23: 9.
+[15]
+ Protection  of  the  electromagnetic  wave  quiet  zone  of  the
+Five-hundred-meter Aperture Spherical Radio Telescope in
+the  Guizhou  Province.  2019.  https://www.gov.cn/zhengce/
+2019-01/21/content_5716895.htm.
+[16]
+ Hu,  H.,  Zhang,  H.  Y.,  Huang,  S.  J.  2020.  Protection
+measures  of  FAST  radio  environment.  Journal  of  Deep
+Space Exploration, 7(2): 152−157. (in Chinese)
+[17]
+ Jiang,  P.,  Tang,  N.  Y.,  Hou,  L.  G.,  et  al.  2020.  The
+fundamental performance of FAST with 19-beam receiver at
+L band. Research in Astronomy and Astrophysics, 20(5): 64.
+[18]
+ Goedhart,  S.  2020.  MeerKAT  specifications.  https://ska
+africa.atlassian.net/wiki/spaces/ESDKB/pages/277315585/
+MeerKAT+specifications.
+[19]
+ ngVLA Performance Estimates. 2021. https://ngvla.nrao.edu/
+page/performance.
+[20]
+ National  Radio  Astronomy  Observatory.  2022.  VLA
+Observational  Status  Summary  2024B  3.2  Sensitivity.
+https://science.nrao.edu/facilities/vla/docs/manuals/oss/perfo
+rmance/sensitivity.
+[21]
+ Becker, R. H., White, R. L., Helfand, D. J. 1995. The FIRST
+survey: faint images of the radio sky at twenty centimeters.
+The Astrophysical Journal, 450(2): 559.
+[22]
+ de Villiers, M. 2007. Interferometric array layout design by
+tomographic projection. Astronomy & Astrophysics, 469(2):
+793−797.
+[23]
+ Pei, X., Wang, N., Dan, W., et al. 2022. Design of RFSoC-
+based  digital  phased  array  feed  (PAF)  and  hybrid
+architecture  beamforming  system.  Research  in  Astronomy
+and Astrophysics, 22: 045016.
+[24]
+ van  der  Byl,  A.,  Smith,  J.,  Martens  A.,  et  al.  2022.
+MeerKAT  correlator-beamformer:  a  real-time  processing
+back-end  for  astronomical  observations.  Journal  of
+Astronomical  Telescopes,  Instruments,  and  Systems,  8(1):
+011006.
+[25]
+ Petroff,  E.,  Hessels,  J.  W.  T.,  Lorimer,  D.  R.  2019.  Fast
+radio bursts. Astronomy and Astrophysics Review, 27: 4.
+[26]
+ Petroff,  E.,  Hessels,  J.  W.  T.,  Lorimer,  D.  R.  2022.  Fast
+radio  bursts  at  the  dawn  of  the  2020s.  Astronomy  and
+Astrophysics Review, 30: 2.
+[27]
+ Kaspi, V. M., Beloborodov, A. M. 2017. Magnetars. Annual
+Review of Astronomy and Astrophysics, 55: 261.
+[28]
+ Zhang,  B.  2020.  The  physical  mechanisms  of  fast  radio
+bursts. Nature, 587: 45−53.
+[29]
+ Levin,  L.,  Armour,  W.,  Baffa,  C.,  et  al.  2018.  Pulsar
+searches with the SKA. In Proceedings of the International
+Astronomical Union. 337:171−174.
+[30]
+ Marcote, B., Nimmo, K., Hessels, J. W. T., et al. 2020. A
+repeating fast radio burst source localized to a nearby spiral
+galaxy. Nature, 577: 190−194.
+[31]
+ Tendulkar, S. P., Bassa, C. G., Cordes, J. M., et al. 2017.
+The host galaxy and redshift of the repeating fast radio burst
+FRB 121102. The Astrophysical Journal, 834: L7.
+[32]
+ Koribalski, B. S., Staveley-Smith, L., Westmeier, T., et al.
+2020. 
+WALLABY-an
+ SKA
+ Pathfinder
+ HI
+ survey.
+Astrophysics and Space Science, 365: 118.
+[33]
+ Wang,  J.,  Staveley-Smith,  L.,  Westmeier,  T.,  et  al.  2021.
+WALLABY  pilot  survey:  the  diversity  of  ram  pressure
+[34]
+stripping  of  the  galactic  H  I  gas  in  the  hydra  cluster.  The
+Astrophysical Journal, 915: 70.
+ Sancisi, R., Fraternali, F., Oosterloo, T. et al. 2008. Cold gas
+accretion in galaxies. Astronomy and Astrophysics Review,
+15: 189−223.
+[35]
+ Yun, M. S., Ho, P. T. P., Lo, K. Y. 1994. A high-resolution
+image  of  atomic  hydrogen  in  the  M81  group  of  galaxies.
+Nature, 372: 530−532.
+[36]
+ Martínez-Delgado,  D.,  Pohlen,  M.,  Gabany,  R.  J.,  et  al.
+2009.  Discovery  of  a  giant  stellar  tidal  stream  around  the
+disk  galaxy  NGC  4013.  The  Astrophysical  Journal,  692:
+955−963.
+[37]
+ de Blok, W. J. G. 2005. Halo mass profiles and low surface
+brightness  galaxy  rotation  curves.  The  Astrophysical
+Journal, 634: 227−238.
+[38]
+ Bosma, A. 1981. 21-cm line studies of spiral galaxies II. the
+distribution  and  kinematics  of  neutral  hydrogen  in  spiral
+galaxies of various morphological types. The Astronomical
+Journal, 86(12): 1825−1846.
+[39]
+ Sofue,  Y.,  Rubin,  V.  2001.  Rotation  curves  of  spiral
+galaxies. Annual Review of Astronomy and Astrophysics, 39:
+137−174.
+[40]
+ Best,  P.  N.,  Kauffmann,  G.,  Heckman,  T.  M.,  et  al.  2005.
+The host galaxies of radio-loud active galactic nuclei: mass
+dependences,  gas  cooling  and  active  galactic  nuclei
+feedback.  Monthly  Notices  of  the  Royal  Astronomical
+Society, 362(1): 25−40.
+[41]
+ Miley, G., De Breuck, C. 2008. Distant radio galaxies and
+their environments. Astronomy and Astrophysics Review, 15:
+67−144.
+[42]
+ Baldi, R. D. 2023. The nature of compact radio sources: the
+case  of  FR  0  radio  galaxies.  Astronomy  and  Astrophysics
+Review, 31: 3.
+[43]
+ Heckman,  T.  M.,  Best,  P.  N.  2014.  The  coevolution  of
+galaxies  and  supermassive  black  holes:  insights  from
+surveys  of  the  contemporary  universe.  Annual  Review  of
+Astronomy and Astrophysics, 52: 589−660.
+[44]
+ Kapinska,  A.  D.,  Hardcastle,  M.  J.,  Jackson,  C.  A.,  et  al.
+2015. Unravelling lifecycles and physics of radio-loud AGN
+in  the  SKA  Era.  Proceedings  of  Advancing  Astrophysics
+with the Square Kilometre Array, 215: 173.
+[45]
+ Pérez  Torres,  M.,  Mattila,  S.,  Alonso-Herrero,  A.,  et  al.
+2021.  Star  formation  and  nuclear  activity  in  luminous
+infrared  galaxies:  an  infrared  through  radio  review.
+Astronomy and Astrophysics Review, 29: 2.
+[46]
+ Madau,  P.,  Dickinson,  M.  2014.  Cosmic  star-formation
+history. Annual Review of Astronomy and Astrophysics, 52:
+415−486.
+[47]
+ Hallinan, G., Corsi, A., Mooley, K. P., et al. 2017. A radio
+counterpart  to  a  neutron  star  merger.  Science,  358(6370):
+1579−1583.
+[48]
+ Mooley,  K.  P.,  Nakar,  E.,  Hotokezaka,  K.,  et  al.  2018.  A
+mildly  relativistic  wide-angle  outflow  in  the  neutron-star
+merger event GW170817. Nature, 554: 207−210.
+[49]
+ Ghirlanda,  G.,  Salafia,  O.  S.,  Paragi,  Z.,  et  al.  2019.
+Compact  radio  emission  indicates  a  structured  jet  was
+produced  by  a  binary  neutron  star  merger.  Science,
+363(6430): 968−971.
+[50]
+ Bietenholz,  M.  F.,  De  Colle,  F.,  Granot,  J.,  et  al.  2014.
+Radio  limits  on  off-axis  GRB  afterglows  and  VLBI
+observations  of  SN  2003gk.  Monthly  Notices  of  the  Royal
+Astronomical Society, 440(1): 821−832.
+[51]
+ 
+ 
+ 
+Astronomical Techniques and Instruments,  1(2): 84–94, 2024　93
+ Mohan,  P.,  An,  T.,  Yang,  J.  2020.  The  nearby  luminous
+transient
+ AT2018cow:
+ a
+ magnetar
+ formed
+ in
+ a
+subrelativistically  expanding  nonjetted  explosion.  The
+Astrophysical Journal, 888: L24.
+[52]
+ Taylor,  G.  B.,  Frail,  D.  A.,  Berger,  E.,  et  al.  2004.  The
+angular  size  and  proper  motion  of  the  afterglow  of  GRB
+030329. The Astrophysical Journal, 609: L1.
+[53]
+ Pérez-Torres,  M.  A.,  Lundqvist,  P.,  Beswick,  R.  J.,  et  al.
+2014. Constraints on the progenitor system and the environs
+of  SN  2014J  from  deep  radio  observations.  The
+Astrophysical Journal, 792: 38.
+[54]
+ Margutti,  R.,  Chornock,  R.  2021.  First  multimessenger
+observations  of  a  neutron  star  merger.  Annual  Review  of
+Astronomy and Astrophysics, 59: 155−202.
+[55]
+ Kumar,  P.,  Zhang,  B.  2015.  The  physics  of  gamma-ray
+bursts & relativistic jets. Physics Reports, 561: 1.
+[56]
+ Hallinan,  G.,  Littlefair,  S.  P.,  Cotter,  G.,  et  al.  2015.
+Magnetospherically driven optical and radio aurorae at the
+end of the stellar main sequence. Nature, 523: 568−571.
+[57]
+ Kao, M. M., Mioduszewski, A. J., Villadsen, J., et al. 2023.
+Resolved  imaging  confirms  a  radiation  belt  around  an
+ultracool dwarf. Nature, 619: 272−275.
+[58]
+ Climent, J. B., Guirado, J. C., Pérez-Torres, M., et al. 2023.
+Evidence for a radiation belt around a brown dwarf. Science,
+[59]
+381(6662): 1120−1124.
+ Vedantham, H. K., Callingham, J. R., Shimwell, T. W., et al.
+2020. Coherent radio emission from a quiescent red dwarf
+indicative  of  star-planet  interaction.  Nature  Astronomy,  4:
+577−583.
+[60]
+ Burrows, D. N., Kennea, J. A., Ghisellini, G., et al. 2011.
+Relativistic jet activity from the tidal disruption of a star by
+a massive black hole. Nature, 476: 421−424.
+[61]
+ van Velzen, S., Anderson, G. E., Stone, N. C., et al. 2016. A
+radio  jet  from  the  optical  and  x-ray  bright  stellar  tidal
+disruption flare ASASSN-14li. Science, 351(6268): 62−65.
+[62]
+ Stein, R., van Velzen, S., Kowalski, M., et al. 2021. A tidal
+disruption  event  coincident  with  a  high-energy  neutrino.
+Nature Astronomy, 5: 510−518.
+[63]
+ Mattila, S., Pérez-Torres, M., Efstathiou, A., et al. 2018. A
+dust-enshrouded tidal disruption event with a resolved radio
+jet in a galaxy merger. Science, 361(6401): 482−485.
+[64]
+ Alexander, K. D., van Velzen, S., Horesh, A., et al. 2020.
+Radio  properties  of  tidal  disruption  events.  Space  Science
+Reviews, 216: 81.
+[65]
+ Xu,  L.,  Zou,  Y.  L.,  Jia,  Y.  Z.  2018.  China's  planning  for
+deep  space  exploration  and  lunar  exploration  before  2030.
+Chinese Journal of Space Science, 38(5): 591−592.
+[66]
+ 
+ 
+ 
+94　www.ati.ac.cn

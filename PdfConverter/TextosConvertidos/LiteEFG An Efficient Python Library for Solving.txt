@@ -1,0 +1,936 @@
+LiteEFG: An Efficient Python Library for Solving
+Extensive-form Games
+Mingyang Liu 1, Gabriele Farina1, Asuman Ozdaglar 1
+1 LIDS, EECS, Massachusetts Institute of Technology
+1 {liumy19,asuman,gfarina}@mit.edu
+Abstract
+LiteEFG is an efficient library with easy-to-use Python bindings, which can solve multiplayer extensive-
+form games (EFGs). LiteEFG enables the user to express computation graphs in Python to define
+updates on the game tree structure. The graph is then executed by the C++ backend, leading to significant
+speedups compared to running the algorithm in Python. Moreover, in LiteEFG, the user needs to only
+specify the computation graph of the update rule in a decision node of the game, and LiteEFG will
+automatically distribute the update rule to each decision node and handle the structure of the imperfect-
+information game.
+Contents
+1
+Introduction
+2
+2
+Preliminaries
+2
+3
+Tour: Implementation of Counterfactual Regret Minimization (CFR)
+3
+3.1
+Basics of Computation Graph . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+3
+3.2
+Construction of Computation Graph . . . . . . . . . . . . . . . . . . . . . . . . . . .
+4
+3.3
+Visitation of Infosets
+. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+4
+3.3.1
+Static Graph
+. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+5
+3.3.2
+Dynamic Graph . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+5
+3.4
+Loading the Game . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+6
+3.5
+Training . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+7
+3.6
+Evaluation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+8
+3.7
+Debug . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+8
+3.8
+Various Baselines . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+8
+4
+Benchmark
+9
+5
+Conclusion
+10
+1
+arXiv:2407.20351v1  [cs.GT]  29 Jul 2024
+1
+Introduction
+The successes of reinforcement learning in solving various games, including Go (Silver et al., 2016, 2017), Atari
+(Mnih et al., 2013), and Dota2 (Berner et al., 2019), have increased interest in developing scalable approaches for
+finding equilibrium strategies in extensive-form games (EFGs). Compared to Markov games where the game state
+is fully observable, a big challenge in EFG is that decisions are made according to partial observation of the game
+state. It further results in additional hardness in computing the expected utility of taking an action, unlike Q-values
+in Markov games, since the expected utility depends on the distribution of hidden information. For instance, in Texas
+Hold’em, the utility of raising the bid depends not only on the private hands of the decision maker but also on those
+of her opponents, which are unknown when making the decision.
+The recent interest in computation methods for solving EFGs also sparked activity in developing libraries for exe-
+cuting algorithms over the game tree. A popular library is OpenSpiel (Lanctot et al., 2019), which provides various
+game environments with an easy-to-use Python API for researchers to test their algorithms. However, the algorithms
+operating over OpenSpiel are usually very slow since they are executed via Python. This motivates the need to de-
+vise a library that incorporates both simple Python API and efficient backend execution, similar to how TensorFlow
+(Abadi et al., 2016) and PyTorch (Steiner et al., 2019) operate.
+To address the challenge above, we propose LiteEFG, an open-source library with a simple Python API and an effi-
+cient C++ backend for solving EFGs, which is much faster than pure Python execution. With LiteEFG, researchers
+need to define the update-rule at a decision node in a similar way as defining neural networks with TensorFlow or
+Pytorch, then LiteEFG will automatically distribute that update-rule to each individual decision node and handle the
+relationship between different decision nodes automatically. Compared to OpenSpiel (Lanctot et al., 2019), LiteEFG
+is simpler and faster when solving tabular games (games that may fit into the computer memory). In experiments, the
+classical baseline, Counterfactual Regret Minimization (Zinkevich et al., 2007), implemented by LiteEFG is about
+100× faster than that of OpenSpiel.
+In LiteEFG, researchers only need to specify the computation graph of the algorithm via Python. Then, the compu-
+tation graph will be executed via C++, which provides acceleration by several orders of magnitude. Moreover, due
+to the imperfect information of EFG, the game states and decision nodes no longer coincide, which complicates the
+implementation of the algorithm. To simplify the issue, LiteEFG will automatically aggregate the information from
+different game states belonging to the same decision node 1, so users only need to specify the update-rule for the
+decision node, without concerning with the aggregation process.
+2
+Preliminaries
+In this section, we will introduce the preliminaries of EFGs. We use ∆m := {x ∈[0, 1]m : ∑m
+i=1 xi = 1} to denote
+the m −1 dimensional probability simplex. For a discrete set C, we use |C| to denote its cardinality. For any real
+number x ∈R, [x]+ := x · 1x≥0, which is x when x ≥0 and 0 otherwise.
+Basics of extensive-form games.
+In an N-player EFG, we use [N] := {1, 2, ..., N} to denote the set of all players.
+Optionally, a fictitious player—called the chance player—is introduced to model stochastic events, such as a random
+draw of cards or dice roll.
+The game is a tree structure and we use H to denote the set of all nodes in the game. For each h ∈H, one of the
+players among {c} ∪[N], where c is the chance player, will take actions at h. We use p(h) to denote the player
+1In EFGs, since the game is partially observable, some game states may not be differentiable for the decision maker. For instance, in Texas
+Hold’em, the game states that only differ in the private hands of the opponents are not differentiable for the decision maker. Then, we call those
+game states belonging to the same decision node, because the decision made at those game states should be the same.
+2
+acting at h, and say that “h belongs to p(h)”. Then, player p(h) can choose an action in the action set Ah and the
+process will be repeated until the game reaches a terminal node h′ ∈Z, where Z is the set of all terminal nodes.
+The utility for each player i ∈[N] is denoted by Ui : Z →[0, 1].
+Information Set.
+In an imperfect-information game, a player i ∈[N] may not be able to distinguish all the nodes
+of the tree, that is,
+n
+h1, h2, ..., hk : ∀j = 1, 2, ..., k, p(hj) = i
+o
+. For example, in the two-player Texas Hold’em,
+each player cannot distinguish nodes that only differ because of her opponent’s private hand, since the hand of the
+opponent is not revealed. To model imperfect information, a partition of each player’s nodes—called the player’s
+information partition—is introduced. The elements of the partition, called information set (or infoset for short),
+denote nodes that are indistinguishable to the player when acting at any of them. Si is used to denote the set of all
+infosets of player i ∈[N]. For simplicity, for each node h, we use s(h) to denote the infoset that h belongs to and
+extend the player indicator p to infosets, i.e. p(s(h)) := p(h).
+Strategy of Players.
+The strategy of player i ∈[N] can be written as πi(· | s) ∈∆|As| for each infoset s ∈Si,
+where As is the action set of infoset s.2 Therefore, infosets are also called decision nodes, since players make
+decisions conditioned on the infoset.
+Reach Probability and Sequence-form Strategy.
+For any strategy πi of player i ∈[N], we can define the reach
+probability of player i as µπi
+i (h1 →h2) as the reach probability from node h1 to node h2, to which we only count the
+probability contributed by player i while applying πi. Moreover, we can define µπi
+i (s →h) as the reach probability
+from infoset s ∈Si to node h, when only counting the probability contributed by πi. We use µπi
+i (∅→h)
+(µπi
+i (∅→s)) as the reach probability to h (s) from the root of the game. With reach probability, we slightly abuse
+the notion µ to denote the sequence-form strategy µπi
+i (s, a) := µπi
+i (∅→s)πi(a | s).
+3
+Tour: Implementation of Counterfactual Regret Minimization (CFR)
+In this section, we will introduce how to use LiteEFG.
+3.1
+Basics of Computation Graph
+LiteEFG is based on the computation graph, in which a vector is stored at each node and users need to define the
+relationships between graph nodes. For instance, node A equals node B plus node C. Then, every time the user
+updates the graph, the variables at each graph node will be updated according to the predefined relationship.
+In LiteEFG, the user need to define the computation graph for an infoset first. Then, the graph will be copied to each
+infoset in S
+i∈[N] Si. Therefore, all infosets share the same relationship between graph nodes, while the variables
+stored in the graph node of each infoset are independent.
+In LiteEFG, the user can define a node by LiteEFG.function(...) with some function of LiteEFG3, such as
+LiteEFG.sum and LiteEFG.exp. In this case, LiteEFG will create a new node to store the outcome of the function
+and return that node. Alternatively, the user can update the variable at a node by x.inplace(LiteEFG.function(...)).
+In this case, LiteEFG will not create a new node. Instead, the outcome of the function will be stored at node x, and
+replace the original variable at x.
+2Since nodes in s cannot be differentiated by i, the action set of each node in s must be the same.
+3The full API list can be found in https://github.com/liumy2010/LiteEFG.
+3
+LiteEFG.backward
+(is_static=True)
+LiteEFG.forward
+(is_static=True)
+LiteEFG.backward
+(is_static=False)
+LiteEFG
+.Environment
+.set_graph
+LiteEFG
+.Environment
+.update
+LiteEFG.forward
+(is_static=False)
+Initialization
+Update
+Figure 1:
+At the very beginning, when the computation graph for the environment is determined by
+LiteEFG.Environment.set_graph, the static backward nodes and static forward nodes will be executed sequen-
+tially. Then, each time LiteEFG.Environment.update is called, the dynamic backward nodes and dynamic forward
+nodes will be executed.
+3.2
+Construction of Computation Graph
+In this section, we will introduce the construction of the computation graph for Counterfactual Regret Minimization
+(CFR) (Zinkevich et al., 2007), one of the most prominent algorithms for solving EFGs, with LiteEFG.
+3.3
+Visitation of Infosets
+LiteEFG provides four types of graph nodes.
+• LiteEFG.backward(is_static=True): Static backward nodes. These nodes will be executed at initialization
+(ahead of the execution of any other nodes). To execute the static backward nodes, infosets will be visited in
+the reversed breadth-first order and the corresponding static backward nodes will be executed.
+• LiteEFG.forward(is_static=True): Static forward nodes. These nodes will be executed at initialization
+(ahead of the execution of any dynamic nodes, but after the static backward nodes). To execute the static
+backward nodes, infosets will be visited in the breadth-first order and the corresponding static forward nodes
+will be executed.
+• LiteEFG.backward(is_static=False): Dynamic backward nodes. These nodes will be executed every time
+the function LiteEFG.Environment.update is called. To execute the dynamic backward nodes, infosets will
+be visited in the reversed breadth-first order and the corresponding dynamic backward nodes will be executed.
+• LiteEFG.forward(is_static=False): Dynamic forward nodes. These nodes will be executed every time
+the function LiteEFG.Environment.update is called. To execute the dynamic backward nodes, infosets will
+be visited in the breadth-first order and the corresponding dynamic forward nodes will be executed.
+The order is also illustrated in Figure 1.
+4
+1
+class CFR(LiteEFG.Graph):
+2
+    def __init__(self):
+3
+        super().__init__()
+4
+        with LiteEFG.backward(is_static=True):
+5
+        # The static part, which will only be computed at initialization
+6
+7
+            expectation = LiteEFG.const(size=1, val=0.0)
+8
+            self.strategy = LiteEFG.const(self.action_set_size, 1.0 / self.action_set_size)
+9
+            self.regret_buffer = LiteEFG.const(self.action_set_size, 0.0)
+10
+11
+        with LiteEFG.backward():
+12
+        # In each update, decision nodes will be visited in reversed breadth-first
+13
+        # order and the following will be executed
+14
+15
+            counterfactual_value = LiteEFG.aggregate(expectation, aggregator="sum") + self.utility
+16
+            expectation.inplace(LiteEFG.dot(counterfactual_value, self.strategy))
+17
+            self.regret_buffer.inplace(self.regret_buffer + counterfactual_value - expectation)
+18
+            self.strategy.inplace(LiteEFG.normalize(self.regret_buffer, p_norm=1.0, ignore_negative=True))
+19
+game = pyspiel.load_game("leduc_poker")
+20
+env = LiteEFG.OpenSpielEnv(game, traverse_type="Enumerate") # [Enumerate, External, Outcome]
+21
+graph = CFR()
+22
+env.GetGraph(graph) # Load the graph
+23
+24
+for i in range(100000):
+25
+  graph.UpdateGraph(env) # Execute the dynamic part of the graph
+26
+  env.UpdateStrategy(graph.strategy, update_best=False) # Update the strategy
+27
+28
+print(env.Exploitability(graph.strategy, "avg-iterate")) # Compute exploitability
+Figure 2: Implementation of Counterfactual Regret Minimization (CFR) (Zinkevich et al., 2007) by LiteEFG. The
+green box displays the definition of static variables that will only be updated once at initialization. The red box
+displays the variables that will be updated every time updating the graph.
+3.3.1
+Static Graph
+The update-rule of CFR is as follows. For any player i ∈[N], an infoset s ∈Si, and action a ∈As, the update-rule
+at timestep t ∈{1, 2, ..., T} is
+CF(t+1)
+i
+(s, a) = ∑
+h∈Z
+Ui(h)µ
+π(t+1)
+i
+i
+(s →h)
+π(t+1)
+i
+(a | s)
+∏
+j∈{c}∪[N]: j̸=i
+µ
+π(t+1)
+j
+j
+(∅→h)
+R(t+1)
+i
+(s, a) = R(t)
+i (s, a) + CF(t+1)
+i
+(s, a) −Ea′∼π(t+1)
+i
+(· | s)
+h
+CF(t+1)
+i
+(s, a′)
+i
+(3.1)
+π(t+2)
+i
+(a | s) =
+
+
+
+
+
+[R(t+1)
+i
+(s,a)]+
+∑a′∈As[R(t+1)
+i
+(s,a′)]+
+∑a′∈As[R(t+1)
+i
+(s, a′)]+ > 0
+1
+|As|
+∑a′∈As[R(t+1)
+i
+(s, a′)]+ = 0
+From Equation (3.1), to update CFR, we need to maintain two variables in each infoset s, the strategy πi(· | s) ∈
+∆|As|, and the regret buffer R(s, ·) ∈R|As|. In Figure 2, the green code block defines the static backward nodes of
+CFR algorithm. In line 7, we define expectation, which is the placeholder for Ea′∼π(t+1)
+i
+(· | s)
+h
+CF(t+1)
+i
+(s, a′)
+i
+. We
+will discuss the necessity of such placeholder in Section 3.3.2. Line 8 and 9 initialize πi(· | s) as uniform distribution
+over ∆|As| and R(s, ·) as zero vector individually. The vector at self.action_set_size is a scalar equivalent to
+|As| for each infoset s.
+3.3.2
+Dynamic Graph
+In this section, we will focus on the red code block in Figure 2.
+Line 15.
+Line 15 displays the usage of LiteEFG.aggregate.
+5
+LiteEFG.aggregate(x, aggregator_name : [”sum”, ”mean”, ”max”, ”min”],
+object_name : [”children”, ”parent”] = ”children”,
+player : [”self”, ”opponents”] = ”self”, padding = 0.0)
+• x: Indicates the graph node from which the function aggregates information.
+• aggregator_name: Method to aggregate the information.
+• object_name: Aggregate information from parent / children of the current infoset. By default, it is “children".
+• player: Aggregate information from the infosets belong to self / opponents. For instance, when object_name="children",
+for an infoset s ∈Si, we will aggregate the information from the children s′ of s, with p(s′) = i if
+player="self" and s′ with p(s′) ̸= i otherwise.
+• padding: If the parent / children of the current infoset does not exist, return padding.
+When the object_name is “children”, for each action a ∈As in infoset s, there may be several subsequent children
+infoset. aggregate will first concatenate the variable at x at all those infosets together. Then, LiteEFG will call the
+aggregator function specified in aggregator_name to aggregate that vector to a single scalar. Finally, LiteEFG will
+concatenate the scalar at each action a ∈As to a vector in R|As|.
+When the object_name is “parent”, suppose (s′, a′) is the parent sequence of s. If the variable v stored at x at s′ is
+in R|As′|, then va′ will be returned. Or if v will be returned if it is a scalar. Otherwise, an error occurs.
+Line 16.
+Line 16 computes Ea′∼π(t+1)
+i
+(· | s)
+h
+CF(t+1)
+i
+(s, a′)
+i
+to replace the old value Ea′∼π(t)
+i
+(· | s)
+h
+CF(t)
+i (s, a′)
+i
+stored in expectation. Because we need to specify x as expectation for the aggregator function, while expectation
+is defined upon the returned value of the aggregate function, we have to put a placeholder of expectation at line
+7 before aggregate.
+Line 17.
+Line 17 updates the value of R(t)
+i (s, ·) to R(t+1)
+i
+(s, ·) according to Equation (3.1).
+Line 18.
+Line 18 computes π(t+2)
+i
+(· | s) according to Equation (3.1) to replace the old value π(t+1)
+i
+(· | s) stored
+in self.strategy.
+3.4
+Loading the Game
+LiteEFG is fully compatible with OpenSpiel, i.e. LiteEFG supports almost all games in OpenSpiel4. Moreover, for
+games not implemented by OpenSpiel, users can write a game description text file alternatively and load it using
+LiteEFG.FileEnv. An example of the game file is illustrated in Figure 3, and the full example can be found in
+LiteEFG/game_instances/kuhn.game. At the beginning, the game file displays the parameters of the game, where
+the parameter num_players is necessary and other parameters are optional. The next several lines will include the
+node information, with an identifier node at the beginning of the line, and the node’s name goes after it. For different
+types of nodes, the additional information should obey the following rules,
+4Some games such as Hanabi (Bard et al., 2020) is too big and the implementation of OpenSpiel does not include infoset, so that LiteEFG
+does not support it.
+6
+# Kuhn instance with parameters:
+#
+# Opt {
+#     num_players: 2,
+#     num_ranks: 3,
+# }
+#
+node
+/
+chance
+actions JQ=0.16666667 JK=0.16666667 QJ=0.16666667 QK=0.16666667 KJ=0.16666667 KQ=0.16666667
+node
+/C:JQ
+player 1
+actions k b
+node
+/C:JQ/P1:k
+player 2
+actions k b
+node
+/C:JQ/P1:k/P2:k
+leaf
+payoffs 1=-1 2=1
+node
+/C:JQ/P1:k/P2:b
+player 1
+actions c f
+...
+...
+...
+...
+node
+/C:KQ/P1:k/P2:b/P1:f
+leaf
+payoffs 1=-1 2=1
+node
+/C:KQ/P1:b
+player 2
+actions c f
+node
+/C:KQ/P1:b/P2:c
+leaf
+payoffs 1=2 2=-2
+node
+/C:KQ/P1:b/P2:f
+leaf
+payoffs 1=1 2=-1
+infoset
+pl1_0__J?/
+nodes
+/C:JQ /C:JK
+infoset
+pl1_1__J?/1:k/2:b
+nodes
+/C:JQ/P1:k/P2:b /C:JK/P1:k/P2:b
+...
+...
+...
+...
+infoset
+pl2_4__?K/1:b
+nodes
+/C:JK/P1:b /C:QK/P1:b
+infoset
+pl2_5__?K/1:k
+nodes
+/C:JK/P1:k /C:QK/P1:k
+Figure 3: An example of Kuhn Poker (Kuhn, 1950) represented in the game file format supported by LiteEFG.
+1
+class CFR(LiteEFG.Graph):
+2
+    def __init__(self):
+3
+        super().__init__()
+4
+        with LiteEFG.backward(is_static=True):
+5
+        # The static part, which will only be computed at initialization
+6
+7
+            expectation = LiteEFG.const(size=1, val=0.0)
+8
+            self.strategy = LiteEFG.const(self.action_set_size, 1.0 / self.action_set_size)
+9
+            self.regret_buffer = LiteEFG.const(self.action_set_size, 0.0)
+10
+11
+        with LiteEFG.backward():
+12
+        # In each update, decision nodes will be visited in reversed breadth-first
+13
+        # order and the following will be executed
+14
+15
+            counterfactual_value = LiteEFG.aggregate(expectation, aggregator="sum") + self.utility
+16
+            expectation.inplace(LiteEFG.dot(counterfactual_value, self.strategy))
+17
+            self.regret_buffer.inplace(self.regret_buffer + counterfactual_value - expectation)
+18
+            self.strategy.inplace(LiteEFG.normalize(self.regret_buffer, p_norm=1.0, ignore_negative=True))
+19
+game = pyspiel.load_game("leduc_poker")
+20
+env = LiteEFG.OpenSpielEnv(game, traverse_type="Enumerate") # [Enumerate, External, Outcome]
+21
+graph = CFR()
+22
+env.set_graph(graph) # Load the graph
+23
+24
+for i in range(100000):
+25
+  env.update(graph.strategy) # Execute the dynamic part of the graph
+26
+  env.update_strategy(graph.strategy, update_best=False) # Update the strategy
+27
+28
+print(env.exploitability(graph.strategy, "avg-iterate")) # Compute exploitability
+Figure 4: Training and evaluation of CFR algorithm defined in Figure 2.
+• Chance Node (p(h) = c): Keyword chance should be placed at first and the chance events leading by
+actions will be displayed afterward. The format is event_name=probability. For instance, in Figure 3, the
+chance event JQ means the private card dealt to player 1 and 2 is Jack and Queen individually.
+• Player Node (p(h) ∈[N]): Keyword player should be placed first and p(h) should go after it. Then, the
+valid actions leading by actions should be placed afterward. In Figure 3, k, c, f, b is check, call, fold,
+and bet individually.
+• Leaf (Terminal) Node (h ∈Z): Keyword leaf should be placed first and the utility leading by leading by
+payoffs go afterward. The format of utility is i = Ui(h), where i ∈[N] is the player index.
+After that, the infosets will be described. Each line of infoset description will be led by the identifier infoset and
+the name of the infoset will be placed after it. Then, the nodes in that infoset will be introduced. After the keyword
+nodes, the name of those nodes in the infoset will be displayed.
+3.5
+Training
+In line 19 and line 20 of Figure 4, we load the environment leduc_poker from OpenSpiel to LiteEFG. The
+traverse_type specifies how to traverse the game tree in each iteration. Currently, LiteEFG supports enumerating
+7
+all nodes, external sampling5 (Lanctot et al., 2009), and outcome sampling6 (Lanctot et al., 2009).
+In line 21 and line 22 of Figure 4, we load the computation graph of CFR defined in Figure 2 into the environment.
+In line 25, we update the dynamic part of the graph, so that the update-rule in Equation (3.1) is executed.
+CFR algorithm only guarantees the average sequence-form strategy will converges to the Nash equilibrium in a
+two-player zero-sum game, that is
+ 
+1
+T
+T
+∑
+t=1
+µ
+π(t)
+1
+1
+, 1
+T
+T
+∑
+t=1
+µ
+π(t)
+2
+2
+!
+converging to the Nash equilibrium.
+(3.2)
+Therefore, we need to maintain the average-iterate sequence-form strategy. To simplify the implementation, LiteEFG
+provides the function LiteEFG.Environment.update_strategy, which will automatically maintain the average-
+iterate sequence-form strategy (also supports other types of sequence-form strategy, and the details can be found in
+the Github repository).
+3.6
+Evaluation
+In line 28 of Figure 4, we print the exploitability of the strategy stored at graph node graph.strategy. "avg-iterate"
+indicates we want to measure that of the average-iterate strategy. LiteEFG.Environment.exploitability returns
+a vector v, where each element vi ≥0 indicates how much player i can improve her utility by deviating to other
+strategies while the strategies of other players remain fixed. The sum ∑i∈[N] vi is the exploitability, which measures
+the distance to the Nash equilibrium. When the exploitability is zero, it implies that the current strategies of all
+players form a Nash equilibrium.
+3.7
+Debug
+To debug the strategy, users can call LiteEFG.OpenSpielEnv.get_strategy to get a pandas.DataFrame as shown
+in Figure 5 to display the strategies.
+Moreover, the user can also interact with the strategy computed by the algorithm, by calling LiteEFG.OpenSpielEnv.interact.
+The interaction is displayed in Figure 6.
+3.8
+Various Baselines
+Though EFG is developing fast in recent years (Lee et al., 2021; Liu et al., 2023; Sokota et al., 2023), it is hard to
+make a fair comparison between different algorithms. The difficulty is mainly two-fold. Firstly, some algorithms are
+not open-sourced and algorithms in EFGs are sensitive to the hyper-parameters. Therefore, when re-implementing
+the baseline algorithms, researchers may not be able to achieve the same performance as the original paper with
+the same set of parameters. Moreover, sometimes researchers do not use OpenSpiel or even not using Python to
+implement their algorithms. Secondly, even though some algorithms are open-sourced (Sokota et al., 2023), they are
+highly inefficient since they are purely based on Python. As a result, it takes a lot of computation resources and time
+to make a fair comparison with previous results. Therefore, comprehensive and efficient baselines are important for
+the whole community, and LiteEFG provides a variety of baselines. We list the baseline algorithms in Table 1.
+5For each player i ∈[N], we traverse the game tree once according to the following rule. For a node with p(h) = i, we visit children under
+(h, a) for each a ∈Ah. For a node with p(h) ̸= i, we sample a children a ∼πp(h)(· | s(h)) and only visit the children under (h, a).
+6Whenever meets a node, sample a children a ∼πp(h)(· | s(h)) and only visit the children under (h, a).
+8
+Infoset
+Fold
+Call
+Raise
+[Observer: 0][Private: 2][Round 1][Player: 0][Pot: 2][Money: 99 99][Round1: ][Round2: ]
+0.0
+0.243
+0.756
+[Observer: 0][Private: 2][Round 1][Player: 0][Pot: 8][Money: 97 95][Round1: 2 2][Round2: ]
+0.0
+1.0
+0.0
+[Observer: 0][Private: 2][Round 2][Player: 0][Pot: 10][Money: 95 95][Public: 1][Round1: 2 2 1][Round2: ]
+0.0
+0.326
+0.673
+[Observer: 0][Private: 2][Round 2][Player: 0][Pot: 22][Money: 91 87][Public: 1][Round1: 2 2 1][Round2: 2 2]
+0.617
+0.382
+0.0
+[Observer: 0][Private: 2][Round 2][Player: 0][Pot: 14][Money: 95 91][Public: 1][Round1: 2 2 1][Round2: 1 2]
+0.133
+0.836
+0.029
+[Observer: 0][Private: 2][Round 2][Player: 0][Pot: 10][Money: 95 95][Public: 0][Round1: 2 2 1][Round2: ]
+0.0
+0.911
+0.088
+[Observer: 0][Private: 2][Round 2][Player: 0][Pot: 22][Money: 91 87][Public: 0][Round1: 2 2 1][Round2: 2 2]
+0.281
+0.718
+0.0
+[Observer: 0][Private: 2][Round 2][Player: 0][Pot: 14][Money: 95 91][Public: 0][Round1: 2 2 1][Round2: 1 2]
+0.000
+0.998
+0.000
+[Observer: 0][Private: 2][Round 2][Player: 0][Pot: 6][Money: 97 97][Public: 1][Round1: 2 1][Round2: ]
+0.0
+0.999
+0.000
+[Observer: 0][Private: 2][Round 2][Player: 0][Pot: 18][Money: 93 89][Public: 1][Round1: 2 1][Round2: 2 2]
+0.837
+0.162
+0.0
+[Observer: 0][Private: 2][Round 2][Player: 0][Pot: 10][Money: 97 93][Public: 1][Round1: 2 1][Round2: 1 2]
+0.500
+0.499
+0.000
+[Observer: 0][Private: 2][Round 2][Player: 0][Pot: 6][Money: 97 97][Public: 0][Round1: 2 1][Round2: ]
+0.0
+0.929
+0.070
+[Observer: 0][Private: 2][Round 2][Player: 0][Pot: 18][Money: 93 89][Public: 0][Round1: 2 1][Round2: 2 2]
+0.690
+0.309
+0.0
+[Observer: 0][Private: 2][Round 2][Player: 0][Pot: 10][Money: 97 93][Public: 0][Round1: 2 1][Round2: 1 2]
+0.036
+0.950
+0.013
+[Observer: 0][Private: 2][Round 1][Player: 0][Pot: 4][Money: 99 97][Round1: 1 2][Round2: ]
+0.0
+0.328
+0.671
+[Observer: 0][Private: 2][Round 2][Player: 0][Pot: 10][Money: 95 95][Public: 1][Round1: 1 2 2 1][Round2: ]
+0.0
+0.971
+0.028
+[Observer: 0][Private: 2][Round 2][Player: 0][Pot: 22][Money: 91 87][Public: 1][Round1: 1 2 2 1][Round2: 2 2]
+0.615
+0.384
+0.0
+[Observer: 0][Private: 2][Round 2][Player: 0][Pot: 14][Money: 95 91][Public: 1][Round1: 1 2 2 1][Round2: 1 2]
+0.293
+0.654
+0.052
+[Observer: 0][Private: 2][Round 2][Player: 0][Pot: 10][Money: 95 95][Public: 0][Round1: 1 2 2 1][Round2: ]
+0.0
+0.922
+0.077
+Figure
+5:
+A
+snapshot
+of
+the
+strategy
+of
+player
+1
+generated
+by
+CFR
+algorithm
+in
+leduc_poker(suit_isomorphism=True) of OpenSpiel.
+The first column displays the name of the infoset,
+and the second to the fourth column is the probability of choosing fold / call / raise in that infoset. The index of fold
+/ call / raise in the representation of infoset is 0, 1, 2.
+4
+Benchmark
+In this section, we will compare the performance of CFR over LiteEFG and OpenSpiel. All experiments are com-
+puted on Intel(R) Xeon(R) Platinum 8260 CPU @ 2.40GHz. We compare the performance of the baseline
+algorithm CFR (Zinkevich et al., 2007) and CFR+ (Tammelin et al., 2015) in four classical benchmark games, Liar’s
+Dice, Leduc Poker (Southey et al., 2005), Kuhn Poker (Kuhn, 1950), and Dark Hex. The results are shown in Fig-
+ure 7. To make a fair comparison, we directly call the official C++ implementation of CFR / CFR+ in OpenSpiel by
+open_spiel.python.algorithms.cfr._CFRSolver.
+We can see that in Figure 7, LiteEFG provides over 100× acceleration in both games, compared to OpenSpiel. In
+OpenSpiel, running CFR+ for 100,000 iterations takes about 8 hours in Leduc Poker, while it takes less than 10
+minutes with LiteEFG. In the regime of learning in EFGs, the algorithms usually require extensive hyper-parameter
+search to enhance the performance (Lee et al., 2021; Liu et al., 2023; Sokota et al., 2023), which further enlarges the
+gap between LiteEFG and OpenSpiel.
+9
+1
+You are player: 0 in leduc_poker (players indexed from 0 to 1)
+2
+3
+========== Epoch 0 ==========
+4
+5
+[Observer: 0][Private: 0][Round 1][Player: 0][Pot: 2][Money: 99 99][Round1: ][Round2: ]
+6
+Valid Actions: 1=Call 2=Raise
+7
+Your Choice: 1
+8
+[Observer: 0][Private: 0][Round 1][Player: 0][Pot: 4][Money: 99 97][Round1: 1 2][Round2: ]
+9
+Valid Actions: 0=Fold 1=Call 2=Raise
+10
+Your Choice: 2
+11
+[Observer: 0][Private: 0][Round 2][Player: 0][Pot: 10][Money: 95 95][Public: 2][Round1: 1 2 2 1][Round2: ]
+12
+Valid Actions: 1=Call 2=Raise
+13
+Your Choice: 0
+14
+Invalid action! Please choose from the valid actions.
+15
+Valid Actions: 1=Call 2=Raise
+16
+Your Choice: 1
+17
+[Observer: 0][Private: 0][Round 2][Player: 0][Pot: 14][Money: 95 91][Public: 2][Round1: 1 2 2 1][Round2: 1 2]
+18
+Valid Actions: 0=Fold 1=Call 2=Raise
+19
+Your Choice: 2
+20
+21
+========== Epoch 0 Summary ==========
+22
+23
+The final outcome of the game is:
+24
+25
+Round: 2
+26
+Player: 1
+27
+Pot: 0
+28
+Money (p1 p2 ...): 87 113
+29
+Cards (public p1 p2 ...): 2 0 2
+30
+Round 1 sequence: Call, Raise, Raise, Call
+31
+Round 2 sequence: Call, Raise, Raise, Call
+32
+33
+You are player: 0 (players indexed from 0 to 1)
+34
+Your Payoff:  -13.0
+35
+Accumulated Payoff of Each Player:  [-13.  13.]
+36
+Average Payoff of Each Player:  [-13.  13.]
+37
+38
+========== Epoch 1 ==========
+39
+40
+[Observer: 0][Private: 0][Round 1][Player: 0][Pot: 2][Money: 99 99][Round1: ][Round2: ]
+41
+Valid Actions: 1=Call 2=Raise
+42
+Your Choice:
+Figure 6: The interaction with strategy generated by CFR in LiteEFG.OpenSpielEnv.get_strategy.
+5
+Conclusion
+In this paper, we propose the new computation framework LiteEFG for solving EFGs. It is more computationally ef-
+ficient compared to previous work. Moreover, users can avoid handling the complex imperfect-information structure
+of EFGs by using LiteEFG, since the library will automatically process the data flow between decision nodes with
+imperfect information and real nodes in the game tree. Therefore, LiteEFG would benefit researchers by improving
+the efficiency of both implementation of the code and computation for algorithms in EFGs.
+10
+Algorithms
+Traverse Type
+Reference
+Counterfactual Regret Minimization (CFR)
+Full Information
+Zinkevich et al. (2007)
+Counterfactual Regret Minimization+ (CFR+)
+Full Information
+Tammelin et al. (2015)
+Discounted Counterfactual Regret Minimization (DCFR)
+Full Information
+Brown and Sandholm (2019)
+Predictive Counterfactual Regret Minimization (PCFR)
+Full Information
+Farina et al. (2021)
+External-Sampling Counterfactual Regret Minimization (ES-CFR)
+External Sampling
+Lanctot et al. (2009)
+Outcome-Sampling Counterfactual Regret Minimization (OS-CFR)
+Outcome Sampling
+Lanctot et al. (2009)
+Dilated Optimistic Mirror Descent (DOMD)
+Full Information
+Lee et al. (2021)
+Regularized Dilated Optimistic Mirror Descent (Reg-DOMD)
+Full Information
+Liu et al. (2023)
+Regularized Counterfactual Regret Minimization (Reg-CFR)
+Full Information
+Liu et al. (2023)
+Magnetic Mirror Descent (MMD)
+Full Information /
+Outcome Sampling
+Sokota et al. (2023)
+Q-Function Based Regret Minimization (QFR)
+Full Information /
+Outcome Sampling
+Liu et al. (2024)
+Clairvoyant Mirror Descent (CMD)
+Full Information
+Wibisono et al. (2022)
+Table 1: The baseline algorithms implemented by LiteEFG.
+4-Sided Liar’s Dice
+Leduc Poker
+Kuhn Poker
+2x2 Abrupt Dark Hex
+10−1
+100
+101
+102
+103
+104
+Time (seconds)
+4-Sided Liar’s Dice
+Leduc Poker
+Kuhn Poker
+2x2 Abrupt Dark Hex
+10−1
+100
+101
+102
+103
+104
+CFR (Zinkevich et al., 2007)
+CFR+ (Tammelin et al., 2015)
+4-Sided Liar’s Dice
+Leduc Poker
+Kuhn Poker
+2x2 Abrupt Dark Hex
+0
+1
+2
+3
+4
+Time (log10(seconds+1))
+CFR
+4-Sided Liar’s Dice
+Leduc Poker
+Kuhn Poker
+2x2 Abrupt Dark Hex
+0
+1
+2
+3
+4
+CFR+
+LiteEFG
+OpenSpiel
+Figure 7: The running time of CFR and CFR+ in 4 benchmark games, Liar’s Dice, Leduc Poker, Kuhn Poker, and
+Dark Hex. Each algorithm is executed for 100 times in each game, and for each execution, the algorithm lasts for
+100,000 iterations. From the figure, LiteEFG is about 100× faster than OpenSpiel.
+References
+Martín Abadi, Paul Barham, Jianmin Chen, Zhifeng Chen, Andy Davis, Jeffrey Dean, Matthieu Devin, Sanjay
+Ghemawat, Geoffrey Irving, Michael Isard, et al. {TensorFlow}: a system for {Large-Scale} machine learning.
+In 12th USENIX symposium on operating systems design and implementation (OSDI 16), pages 265–283, 2016.
+Nolan Bard, Jakob N Foerster, Sarath Chandar, Neil Burch, Marc Lanctot, H Francis Song, Emilio Parisotto, Vincent
+Dumoulin, Subhodeep Moitra, Edward Hughes, et al. The hanabi challenge: A new frontier for ai research.
+Artificial Intelligence, 280:103216, 2020.
+Christopher Berner, Greg Brockman, Brooke Chan, Vicki Cheung, Przemysław D˛ebiak, Christy Dennison, David
+Farhi, Quirin Fischer, Shariq Hashme, Chris Hesse, et al. Dota 2 with large scale deep reinforcement learning.
+arXiv preprint arXiv:1912.06680, 2019.
+Noam Brown and Tuomas Sandholm. Solving imperfect-information games via discounted regret minimization. In
+AAAI Conference on Artificial Intelligence (AAAI), 2019.
+11
+Gabriele Farina, Christian Kroer, and Tuomas Sandholm. Faster game solving via predictive blackwell approach-
+ability: Connecting regret matching and mirror descent. In AAAI Conference on Artificial Intelligence (AAAI),
+2021.
+Harold W Kuhn. A simplified two-person poker. Contributions to the Theory of Games, 1(417):97–103, 1950.
+Marc Lanctot, Kevin Waugh, Martin Zinkevich, and Michael Bowling. Monte carlo sampling for regret minimization
+in extensive games. Neural Information Processing Systems (NeurIPS), 2009.
+Marc Lanctot, Edward Lockhart, Jean-Baptiste Lespiau, Vinicius Zambaldi, Satyaki Upadhyay, Julien Pérolat, Sri-
+ram Srinivasan, Finbarr Timbers, Karl Tuyls, Shayegan Omidshafiei, Daniel Hennes, Dustin Morrill, Paul Muller,
+Timo Ewalds, Ryan Faulkner, János Kramár, Bart De Vylder, Brennan Saeta, James Bradbury, David Ding, Sebas-
+tian Borgeaud, Matthew Lai, Julian Schrittwieser, Thomas Anthony, Edward Hughes, Ivo Danihelka, and Jonah
+Ryan-Davis. OpenSpiel: A framework for reinforcement learning in games. 2019.
+Chung-Wei Lee, Christian Kroer, and Haipeng Luo. Last-iterate convergence in extensive-form games. In Neural
+Information Processing Systems (NeurIPS), 2021.
+Mingyang Liu, Asuman E. Ozdaglar, Tiancheng Yu, and Kaiqing Zhang. The power of regularization in solving
+extensive-form games. In International Conference on Learning Representations (ICLR), 2023.
+Mingyang Liu, Gabriele Farina, and Asuman E. Ozdaglar.
+A policy-gradient approach to solving imperfect-
+information extensive-form games with iterate convergence. 2024.
+Volodymyr Mnih, Koray Kavukcuoglu, David Silver, Alex Graves, Ioannis Antonoglou, Daan Wierstra, and Martin
+Riedmiller. Playing atari with deep reinforcement learning. arXiv preprint arXiv:1312.5602, 2013.
+David Silver, Aja Huang, Chris J Maddison, Arthur Guez, Laurent Sifre, George Van Den Driessche, Julian Schrit-
+twieser, Ioannis Antonoglou, Veda Panneershelvam, Marc Lanctot, et al. Mastering the game of go with deep
+neural networks and tree search. nature, 529(7587):484–489, 2016.
+David Silver, Julian Schrittwieser, Karen Simonyan, Ioannis Antonoglou, Aja Huang, Arthur Guez, Thomas Hubert,
+Lucas Baker, Matthew Lai, Adrian Bolton, et al. Mastering the game of go without human knowledge. nature,
+550(7676):354–359, 2017.
+Samuel Sokota, Ryan D’Orazio, J. Zico Kolter, Nicolas Loizou, Marc Lanctot, Ioannis Mitliagkas, Noam Brown,
+and Christian Kroer. A unified approach to reinforcement learning, quantal response equilibria, and two-player
+zero-sum games. In International Conference on Learning Representations (ICLR), 2023.
+Finnegan Southey, Michael Bowling, Bryce Larson, Carmelo Piccione, Neil Burch, Darse Billings, and Chris Rayner.
+Bayes’ bluff: opponent modelling in poker. In Conference on Uncertainty in Artificial Intelligence (UAI), 2005.
+Benoit Steiner, Zachary DeVito, Soumith Chintala, Sam Gross, Adam Paske, Francisco Massa, Adam Lerer, Greg
+Chanan, Zeming Lin, Edward Yang, et al. Pytorch: An imperative style, high-performance deep learning library.
+2019.
+Oskari Tammelin, Neil Burch, Michael Johanson, and Michael Bowling. Solving Heads-Up Limit Texas Hold’em.
+In International Joint Conference on Artificial Intelligence (IJCAI), 2015.
+Andre Wibisono, Molei Tao, and Georgios Piliouras. Alternating mirror descent for constrained min-max games.
+Neural Information Processing Systems (NeurIPS), 2022.
+Martin Zinkevich, Michael Johanson, Michael H. Bowling, and Carmelo Piccione. Regret minimization in games
+with incomplete information. In Neural Information Processing Systems (NeurIPS), 2007.
+12

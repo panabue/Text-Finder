@@ -1,0 +1,1133 @@
+Deep Patch Visual SLAM
+Lahav Lipson, Zachary Teed, and Jia Deng
+Princeton University
+Abstract. Recent work in visual SLAM has shown the effectiveness
+of using deep network backbones. Despite excellent accuracy, however,
+such approaches are often expensive to run or do not generalize well
+zero-shot. Their runtime can also fluctuate wildly while their frontend
+and backend fight for access to GPU resources. To address these prob-
+lems, we introduce Deep Patch Visual (DPV) SLAM, a method for
+monocular visual SLAM on a single GPU. DPV-SLAM maintains a
+high minimum framerate and small memory overhead (5-7G) compared
+to existing deep SLAM systems. On real-world datasets, DPV-SLAM
+runs at 1x-4x real-time framerates. We achieve comparable accuracy to
+DROID-SLAM on EuRoC and TartanAir while running 2.5x faster us-
+ing a fraction of the memory. DPV-SLAM is an extension to the DPVO
+visual odometry system; its code can be found in the same repository:
+https://github.com/princeton-vl/DPVO
+Keywords: SLAM · Visual Odometry · Monocular
+1
+Introduction
+Visual Simultaneous Localization and Mapping (SLAM) is an online variant
+of Structure-from-Motion, where the input is a video stream. SLAM is a long-
+standing problem from robotics, where planning and control algorithms rely on
+accurate real-time state estimation. Recently, visual SLAM has also been utilized
+as a sub-system for computer vision algorithms, including those for monocular
+depth [40,47], view synthesis [20,51], and 3D human pose [25,46]. In particular,
+the camera pose predictions from visual SLAM enable one to easily ground mul-
+tiple single-image predictions in a global reference frame. The camera poses also
+enable 3D reconstruction and view-synthesis methods to leverage constraints
+from epipolar geometry.
+A key challenge of these settings is that they often deal with monocular video
+with no inertial measurements, requiring a SLAM solution with higher tracking
+accuracy. Therefore, several computer vision algorithms [20, 25, 43–45, 47] are
+built-upon or utilize deep-network-based SLAM algorithms for providing cam-
+era pose, which are typically more accurate than their classical counterparts.
+However, such algorithms [31,45,51] require a GPU with 24G of memory to run
+on all standard datasets, making them viable for offline pre-processing but less
+suitable for online applications.
+To address this high cost, Deep Patch Visual Odometry [32] (DPVO) was
+introduced, which borrowed the same overall mechanism as DROID-SLAM [31],
+arXiv:2408.01654v1  [cs.CV]  3 Aug 2024
+2
+Lipson, Teed, Deng
+but removed the requirement for dense correspondence in favor of sparse opti-
+cal flow, making the system significantly cheaper for camera pose estimation.
+However, DPVO is only an odometry system, meaning it contains no mecha-
+nism to correct for accumulated pose errors. A fully-fledged SLAM system will
+typically detect previously visited locations and perform global optimization at
+a low frequency and in a separate thread (i.e., a backend).
+Unfortunately, this odometry+backend paradigm fundamentally breaks for
+SLAM systems based on deep networks, since two separate CUDA operations on
+the same device will usually run sequentially, not in parallel, even when called
+from separate processes. The consequence is that, on a single GPU, existing
+deep SLAM systems will periodically drop from ≈30hz to <1hz while waiting
+for a single iteration of their backend to run. Consistent real-time inference thus
+requires two separate GPUs.
+A secondary challenge for deep SLAM systems is that global optimization
+requires storing a significant number of deep features in GPU memory. For ap-
+proaches based on optical flow [31,45,51], this means retaining expensive dense
+feature maps for all frames in anticipation that they may be used by the back-
+end at some point, leading to GPU memory usage which grows quickly with the
+video length.
+In this work, we extend the DPVO odometry system to a full SLAM sys-
+tem by introducing a mechanism for loop closure which does not suffer from
+these issues, and refer to the full system as “DPV-SLAM”. We also introduce
+a separate, traditional loop closure mechanism based on classical features, with
+benefits complementary to typical deep-SLAM backends. This is primarily a sys-
+tems paper; we aim to provide an efficient and accurate utility for camera pose
+estimation for in-the-wild video with global optimization and loop closure. We
+describe our contributions in detail and open source our code. We hope this will
+be a valuable resource for the community. We evaluate our approach on EuRoC,
+KITTI, TUM-RGBD and TartanAir, and observe:
+– DPV-SLAM is accurate. We perform similarly to DROID-SLAM on Eu-
+RoC and TartanAir. Compared to DPVO, we achieve 4x lower error on Eu-
+RoC (0.105→0.024). On KITTI, we outperform DROID-SLAM and DPVO
+by significant margins.
+– DPV-SLAM is fast and efficient. DPV-SLAM runs 2.5x faster than
+DROID-SLAM on EuRoC and 2.3x faster on KITTI. Compared to the base
+DPVO system, we incur only a small reduction in speed (e.g., 60→50 FPS
+on [1]) and increase in cost (4G→5G GPU memory).
+– DPV-SLAM is general and robust. Our method performs well in many
+settings, suffering from 0 catastrophic failures. We compare DPV-SLAM
+to other methods which report results on both indoor/outdoor without re-
+training, and show that our method does not struggle in any domain.
+To construct DPV-SLAM, we introduce two efficient mechanisms to correct drift:
+a proximity loop closure and a classical one. The former uses camera proximity
+to detect loops, and addresses a challenge with building SLAM systems on deep
+Deep Patch Visual SLAM
+3
+networks, which is their inability to run the backend and frontend in parallel. It
+doesn’t require a separate GPU, and is inexpensive and fast to run. The central
+idea is to optimize a single, shared scene graph with both odometry and low-cost
+loop closure factors mixed together. To enable efficient global optimization, we
+contribute a CUDA-accelerated block-sparse implementation of bundle adjust-
+ment which is compatible with DPVO’s “patch graph” scene representation. Our
+proximity-based loop closure runs considerably faster DROID-SLAM’s backend
+on EuRoC [1] (0.1-0.18s vs 0.5-5s). Our secondary backend latter utilizes a clas-
+sical loop closure mechanism, which employs image retrieval and pose graph
+optimization to correct for scale drift, and runs on the CPU.
+2
+Related Work
+Zero-Shot Cross-Domain Generalization is a longstanding problem in vi-
+sual SLAM. The challenge is to develop a system which avoids catastrophic
+failures in different domains, without requiring re-training. Classical approaches
+to SLAM [2,17,18] are prone to catastrophic failures during fast camera motion,
+and generally underperform deep approaches on indoor datasets [6,11]. Several
+works have proposed learning a generalized system for SLAM by using a deep-
+network backbone trained entirely on synthetic data. TartanVO [36] trained on
+TartanAir [37] and showed strong performance on both indoor and outdoor set-
+tings without fine tuning. DROID-SLAM [31] and DPVO [32] followed a similar
+approach, but used a differentiable bundle adjustment layer in order to learn
+outlier rejection by supervising on the predicted camera poses.
+Our approach is also trained only on synthetic data, however we demon-
+strate better generalization and/or runtime. Many works in VO/SLAM focus on
+in-domain accuracy, i.e., approaches trained or developed with a particular test
+setting taken into special consideration [15,24,35,38,41,42,48–50]. This setting
+is orthogonal to ours; we do not claim to outperform VO/SLAM systems spe-
+cialized for autonomous driving applications on the KITTI dataset, for example.
+Monocular SLAM is especially challenging due to the ambiguity of scale in
+monocular video. Several VO/SLAM works remove the scale ambiguity alto-
+gether by relying on stereo video, inertial measurements, or depth [9,22,23]. In
+contrast, our method operates on monocular video. We focus our evaluation on
+methods which do the same. Monocular SLAM is important due to the wide
+availability of monocular video, and because they can be easily adapted to use
+additional sensors, whereas the reverse is not always true.
+Neural SLAM and rendering-focused SLAM: Several recent approaches
+use Gaussian-splatting and/or NeRFs [13,14,29,53]. These rendering-based ap-
+proaches are primarily designed for high-quality reconstruction/rendering, with
+tracking being a secondary focus usually only evaluated with smooth/slow cam-
+era motion on [27] or [5]. In contrast, we focus on tracking accuracy in hard
+settings, similar to [2,6,17,18,31,32]. [51] is an exception, which we compare to.
+Loop Closure enables VO/SLAM methods to correct drift by adding factors
+between temporally-distant pose variables. Campos et al. [2] categorized the
+4
+Lipson, Teed, Deng
+types of loop closure as mid-term and long-term data-association based on their
+approach to detecting loops and optimizing the scene graph. Mid-term uses the
+current estimate of poses and depth to detect loops, and updates them using
+bundle adjustment. Long-term uses visual place recognition to detect loops and
+updates the state using pose graph optimization. DROID-SLAM [31] uses mid-
+term. LDSO [11] uses long-term. VO systems use neither (by definition). ORB-
+SLAM [2] uses both. DPV-SLAM uses mid-term, or optionally both.
+Deep Patch Visual Odometry (DPVO) was proposed as a faster alternative
+to the visual odometry from DROID, based on two insights. The first is that vir-
+tually every approach to SLAM provides some mechanism to trade-off accuracy
+for speed and/or memory (to an extent). For example, one can increase the num-
+ber of keypoints, RANSAC iterations, the optimization window size, the image
+resolution, the number of keyframes produced, or the connectivity of the factor
+graph. For SLAM methods with deep-network backbones, one can also increase
+the feature dimension, add more layers, or use quantization / mixed-precision.
+The second insight is that, by predicting sparse optical flow as opposed to
+dense, the resulting memory/runtime savings are sufficient to offset the initial
+accuracy loss by spending them in other aspects of the design. This allows DPVO
+to achieve similar accuracy to DROID-SLAM’s frontend, with much lower cost
+and faster inference. The drawback is that the DPVO design is more challenging
+to adapt to a full SLAM system due to the large per-frame storage require-
+ment. DPVO also suffers from the same performance issues as DROID-SLAM
+on outdoor datasets.
+3
+Approach
+3.1
+DPVO Preliminaries
+Our system is based on Deep Patch Visual Odometry (DPVO) [32]. DPVO is a
+sparse analog of the visual odometry frontend of DROID-SLAM which achieves
+similar accuracy with much lower latency and memory. In this section, we will
+discuss the details of DPVO that are relevant to our contribution. For more
+details, we refer the readers to the original DPVO paper.
+DPVO Overview: Given an input video stream, DPVO seeks to estimate the
+2D motion of selected keypoints across time by predicting optical flow and up-
+dating the depth and camera poses using bundle adjustment. DPVO only sup-
+ports visual odometry, so it operates on a sliding window of frames and removes
+keyframes and features once they fall outside of the optimization window.
+The patch graph: DPVO uses a scene representation known as a patch graph,
+in which each frame i contains a set of p × p patches Pik
+  \ m
+a
+t
+h
+b
+f
+ 
+{
+P
+}
+_
+{
+i
+k}  =  \ left ( \begin {array}{c} \mathbf {x} \\ \mathbf {y} \\ \mathbf {1} \\ \mathbf {d} \end {array} \right ) \qquad \mathbf {x},\mathbf {y},\mathbf {d} \in \mathbb {R}^{1 \times p^2} 
+(1)
+Deep Patch Visual SLAM
+5
+Global Bundle 
+Adjustment
+Loop 
+Detected?
+Patch/Edge &
+Feature 
+Extraction
+Frame 
+Cache
+Frame 
+Cache
+Keypoint 
+Matching
++ Sim(3) Est.
+Pose-Graph 
+Optimization
+Local Bundle 
+Adjustment
+Update Operator
+Introduce loop edges via camera proximity
+Pose Factors
+𝑆𝑖𝑚3
+Factor
+0
+1
+2
+3
+4
+5
+6 7 8 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21222324
+25
+26
+27
+28
+29
+Patch-Graph
+Image 
+Retrieval
+Image 
+Retrieval
+Input Video Stream
+Fig. 1: Overview of DPV-SLAM. Our system is based on the odometry system from
+DPVO [32], and introduces two efficient loop closure mechanisms to correct for accu-
+mulated drift. Like DPVO, our system utilizes a patch graph scene representation, and
+alternates between predicting sparse optical flow residuals and optimizing the camera
+poses and depth using bundle adjustment. Our proximity loop closure detects loops
+using the pre-estimated geometry and jointly refines all variables together. Our classi-
+cal loop-closure uses image retrieval and pose graph optimization.
+where d is the inverse depth estimate. We denote the number of patches for
+frame i as Ki, and [Ki] := {1, ..., Ki}. The patch graph is a bipartite graph,
+in which directed edges connect patches to frames. The scene representation is
+used by DPVO and DPV-SLAM. We visualize an example of our patch graph
+in Fig. 3.
+Given the current poses, inverse depths and camera intrinsics, we can repro-
+ject any patch to any other frame. We denote the set of edges as F, the global
+camera pose for frame i as Gi, and the 3D→2D pinhole-projection function as
+Π(·). We represent edges from Pik to frame j as (i, k, j). The reprojection of
+Pik to frame j is denoted as
+  
+\la b el {e
+q
+: re p rojection} \mathbf {P}^{\prime }_{ikj} = \Pi [G_{j}^{-1} \cdot G_i \cdot \Pi ^{-1}(\mathbf {P}_{ik})] 
+(2)
+The explicit objective of DPVO is to predict residual updates ∆ikj to P′
+ikj for all
+edges in order to improve the visual alignment. The resulting Iikj := (P′
+ikj + ∆ikj)
+represents the model’s ideal reprojection of Pik into frame j. After predicting
+∆ikj, DPVO optimizes the patch depths and camera poses to align the actual
+patch reprojections to the ideal reprojections.
+  \ lab
+el 
+{
+e
+q
+:bundl
+e
+adjustment}
+ \argmi
+n
+ _{ G , \mathbf  {d}}
+ \s
+um _i \sum _{k \in [K_i]} \sum _{j: (i,k,j) \in F} \norm {\Pi [G_{j}^{-1} \cdot G_i \cdot \Pi ^{-1}(\mathbf {P}_{ik})] - \mathcal {I}_{ikj}}^2_{\Sigma _{ikj}} 
+(3)
+Note that in eq. 3, Iikj is treated as a constant. In addition to ∆ij, DPVO also
+predicts a confidence estimate wikj ∈R2 for each edge. Eq. 3 minimizes the
+6
+Lipson, Teed, Deng
+9.1 GB / 1K Frames
+0.6 GB / 1K Frames
+Uni-Directional 
+Edges
+Bi-Directional 
+Edges
+Fig. 2: Each directed edge in the patch graph introduces a highly-asymmetric memory
+overhead for the source patch and destination frame, respectively. Each edge is also
+associated with its own reprojection-error factor in the optimization which constrains
+both camera poses. This means we can flip their direction arbitrarily to influence which
+frames incur the memory cost, without significantly impacting the optimization result.
+This is a unique property of DPVO’s patch representation and motivates the use of uni-
+directional edges; prior works used bi-directional (and dense) edges in their backends.
+Mahalanobis distance, in which the error terms are weighted by the predicted
+confidences: Σikj = diag(wikj).
+Patch extraction: DPVO selects keypoints randomly, as opposed to the usual
+strategy of using a detector or something more sophisticated [6]. This counter-
+intuitive strategy works surprisingly well [32], and is trivial to implement. The
+patch features are cropped around the chosen 2D keypoints from dense (H/4 ×
+W/4) feature maps predicted by a residual network learned end-to-end with the
+full model. DPVO extracts both 1 × 1 context features, and p × p correlation
+features. The correlation features are used to evaluate the visual alignment of
+the current pose and depth estimates, whereas the context features are provided
+as-is to the update operator.
+Update operator: The update operator of DPVO is the recurrent module
+used to predict ∆ikj and wikj for all edges in the patch graph. As an RNN,
+it also maintains a running hidden state hikj ∈R384 for every edge (i, k, j).
+The architecture includes several fully-connected gated residual units. As input,
+the update operator accepts the previous hidden state hikj, correlation features
+Cikj, and the context features for Pik.
+Patch correlation: Correlation features Cikj are computed for each edge in
+order to evaluate the visual alignment produced by the current depth and pose
+estimates. To compute C, we use eq. 2 to reproject Pik into frame j. Let g(u, v)
+represent the p×p patch correlation features indexed at (u, v) and P′(u, v) denote
+P′
+ijk indexed at (u, v). f(·) denotes bilinear sampling, ⟨·⟩a dot product, and ∆αβ
+a 7 × 7 grid centered at 0, indexed at (α, β). Each value in C ∈Rp×p×7×7 is
+computed as:
+  \l ab el  { e q:correlation} \mathbf {C}(u,v,\alpha ,\beta ) = \langle \mathbf {g}(u,v), \ \mathbf {f}(\mathbf {P}'(u,v) + \Delta _{\alpha \beta }) \rangle v
+(4)
+C is recomputed and flattened before each invocation of the update operator.
+Colloquially, eq. 4 computes a dot product between correlation features for all
+pairs of grid points around either end of the flow vector induced from the poses
+Deep Patch Visual SLAM
+7
+Proximity
+Factors
+Odometry Factors
+Fig. 3: The patch graph for DPV-SLAM. We introduce directed edges from old frames
+to recent frames still in-use by the odometry component. These edges are chosen based
+on the camera’s proximity to previously visited locations. The construction of this
+patch graph only requires storing a finite number of dense feature maps, keeping the
+overall memory consumption small.
+and Pk. The key insight is that eq. 4 requires storing the full correlation feature
+map for frame j in memory, since P′
+ikj is unbounded. This is an expensive
+requirement, which is addressed in our proximity loop-closure.
+3.2
+Proximity Loop Closure
+We contribute a loop closure mechanism to DPVO which detects loops via the
+cameras’ proximity to previously visited locations. This seeks to improve global
+consistency by periodically inserting long-range edges into the patch graph, up-
+dating their optical flow, and performing global bundle adjustment to update
+all camera poses and depth. Previous deep SLAM systems [31, 51] require two
+GPUs in order to consistently average real-time inference. This is because CUDA
+operations typically utilize all available cores on their host device, and therefore
+must run sequentially, even when they are being called from separate processes.
+All Pytorch/CUDA operations in DPV-SLAM run in a single process on a single
+device, which is both simpler and computationally cheaper.
+Constructing the Patch Graph: DPVO, like DROID-SLAM [31], stores dense
+feature maps in memory for updating the optical flow predictions. The larger
+the optimization window, the more feature maps must be kept, increasing cost.
+This problem is exacerbated in DPVO, where the feature maps are twice the
+spatial resolution (1/4 vs 1/8 of the frame size).
+We observe that, for each directed edge in the patch graph, the correlation
+operator only requires storing dense features for the destination frame. Addi-
+tionally, DPV-SLAM borrows the inverse depth parametrization [3] for bundle
+adjustment, so each factor in the optimization will constrain both the source and
+destination camera poses regardless of its direction (see eq. 3). This means we
+8
+Lipson, Teed, Deng
+Fig. 4: We visualize the number of patches participating in the optimization over the
+coarse of a video. During invocations of our proximity loop-closure, we perform global
+bundle adjustment which updates a significant portion of patch depths. Here, we only
+consider patches with at least one high-confidence outgoing edge (w > 0.5).
+can arbitrarily flip any edge in the patch graph to influence which dense features
+must be stored, without significantly affecting the optimization result.
+We exploit this fact to minimize the number of deep features stored in mem-
+ory. Specifically, we permanently store only the patch features for all previous
+time-steps and create uni-directional edges connecting these patches to recently
+observed frames. Consequently, we incur only a minor storage overhead from the
+patch features (≈0.6G / 1K frames). We depict this globally-connected patch
+graph in Fig. 3.
+Efficient Global Optimization: We mix both odometry and loop-closure fac-
+tors in the same optimization. This mandates a bundle adjustment implementa-
+tion which can handle global optimization without severely impacting the odom-
+etry component. DPVO’s pre-existing bundle adjustment is GPU-accelerated,
+but is still inefficient for large, sparse optimization problems. This is precisely
+the challenge we face when introducing a small number of long-range proximity
+factors into the optimization. A viable solution is to leverage the sparse struc-
+ture of the hessian by implementing bundle adjustment in CUDA with block
+sparse representations. While prior work has implemented such a system for
+dense, uniformly sized depth maps [31], such a system has not been built for
+sparse, varying sized patch graphs. We contribute our implementation and use
+it to perform efficient global optimization.
+3.3
+Classical Loop Closure
+Separate from our proximity loop closure, we also support a more traditional
+SLAM backend which uses classical image retrieval and pose graph optimiza-
+tion. This type of loop closure is better equipped to recover from scale drift. We
+refer to the variant of our model with both proximity and classical loop closure
+as DPV-SLAM++.
+Detecting Loops: We identify candidate image pairs using dBoW2 [10] for
+image-retrieval, which requires extracting ORB [21] features for each frame. The
+Deep Patch Visual SLAM
+9
+Structure-Only BA
+Sim(3) Estimation
+Fig. 5: Drift estimation. After identifying a candidate image pair for loop closure us-
+ing image retrieval, we seek to estimate the accumulated drift as a relative 7DOF
+transformation. Using off-the-shelf detectors and matchers, we estimate 2D corre-
+spondence from each retrieved image to its two temporal neighbors and perform
+structure-only bundle adjustment to triangulate their depth. Finally, we match be-
+tween the resulting 3D keypoints and estimate a 7DOF point-cloud alignment with
+RANSAC+Umeyama [34].
+process of extracting features, indexing and searching the DBoW model takes
+less time than the forward pass of DPVO and happens concurrently in a separate
+process, thereby incurring virtually 0 runtime overhead. Following prior work [2],
+we look for multiple consecutive defections to increase precision.
+Estimating Drift: We week to estimate the accumulated drift ∆Sloop
+jk
+∈Sim(3)
+between each retrieved image pair (j, k). This is often done by matching between
+their previously-mapped keypoints. However, our keypoints cannot directly be
+used for matching since DPVO does not use a repeatable-keypoint detector. This
+decision has been justified in several prior works [6, 11, 32] which showed that
+such detectors are not ideal for tracking small-motions. See Fig. 6 for examples.
+We instead leverage off-the-shelf keypoint detectors and matchers [16,19,33],
+only during loop closure, to estimate 2D correspondence from each retrieved
+image to its temporal neighbors and perform structure-only bundle adjustment
+to triangulate their depth. We then match the 3D keypoints between the chosen
+image pair and align their two point clouds using RANSAC+Umeyama [34]. We
+depict this process in Fig. 5.
+Optimization: The final step is to estimate an absolute similarity for all keyframes
+using a simplified version of the algorithm from [26]. We assign each keyframe
+i an initial absolute similarity Si ∈Sim(3) by converting their current global
+pose estimates into similarities with scale 1. These are the free variables of the
+optimization, while the relative-similarity terms denoted with the ∆suffix are
+constants. We add a smoothness term to our optimization objective between
+each keyframe and its successor, defined in the tangent space of Sim(3):
+  r _i = log_
+{
+Sim(
+3)}\big  (\D
+e
+l ta S
+_{(i,i+1)}^{-1} \cdot S_i^{-1} \cdot S_{i+1}\big ) 
+(5)
+and error terms for the estimated loop connections:
+  r _ {jk} = lo
+g
+_{Sim(
+3)
+}  \b
+i
+g  (
+\Delta S^{loop}_{jk} \cdot S^{-1}_{j}\cdot S_{k}\big ) 
+(6)
+10
+Lipson, Teed, Deng
+Fig. 6: Visualization of the 5 most confident (red) and 5 least confident (blue) patch
+centroids on TartanAir [37]. 96 keypoints are chosen randomly in each image. Since
+only the edges have associated weights, we compute the “confidence” of each keypoint
+as the maximum predicted weight over all of its outgoing edges. In contrast to the
+usual expectation that the most salient features are the easiest to track, we observe
+that DPV-SLAM often prefers points on near-featureless regions.
+We then optimize the following objective using the Levengberg-Marquardt algo-
+rithm:
+  \ lab
+el {eq:p
+g o
+}
+ 
+\argm
+i n
+ 
+_
+{S_1,
+...S_N
+}
+ \Bigg ( \sum _i^N \norm {r_{i}}_2^2 + \sum ^L_{(j,k)} \norm {r_{jk}}_2^2 \Bigg ) 
+(7)
+where N is the total number of keyframes and L is the list of detected loops.
+For each absolute similarity Si = (ti, Ri, si), the global poses and inverse depths
+are updated as Gi ←(ti, Ri) and di ←di/si. The pose graph optimization
+is performed on the CPU in parallel to the main process, thereby incurring
+negligible runtime overhead.
+4
+Experiments
+We evaluate DPV-SLAM on four datasets: KITTI [12], TUM-RGBD [28], EuRoC-
+MAV [1], and the TartanAir [37] test set from the ECCV 2020 SLAM competi-
+tion. We compare DPV-SLAM to methods which report results on both indoor
+and outdoor settings, and that do not require re-training their model per-domain.
+DPV-SLAM experiments were run 5 times, and we report the median result. §
+denotes values which we measured using their open source code, since they were
+not reported in the original paper. For GO-SLAM, timings were measured using
+tracking/mono mode. All timing experiments were performed on an RTX-3090.
+The “DPV-SLAM” and “DPV-SLAM++” experiments both utilize the proximity
+loop closure mechanism. The latter also uses the classical loop closure.
+TUM-RGBD [28] We evaluate monocular SLAM on the entirety of the Freiburg
+1 set of the TUM-RGBD benchmark in Tab. 1. This benchmark evaluates indoor,
+Deep Patch Visual SLAM
+11
+(a) DPVO
+(b) DPVO with classical loop closure
+Fig. 7: Predictions of the DPVO [32] base model with and without our classical loop
+closure (Sec. 3.3) on the “Business Campus" sequence of the 4Seasons dataset [39].
+(a) Sequence 41
+(b) Sequence 20
+(c) Sequence 43
+Fig. 8: Qualitative visualization on TUM-Mono [7]
+handheld camera motion, and is especially challenging due to rolling shutter ef-
+fects and motion blur. Video is recorded at 30FPS.
+Compared to other deep SLAM systems [31, 45, 51], our method performs
+similarly (0.054-0.076 vs 0.38-0.114), however these other approaches do not
+perform well (or don’t report results) in outdoor settings (see Tab. 2). Classical
+approaches generally do not perform well on this dataset. In contrast, they per-
+form well on KITTI while previous deep SLAM methods do not. Our method
+performs well on both datasets.
+KITTI [12] We evaluate monocular SLAM on sequences 00-10 from the KITTI
+training set in Tab. 2. Video is recorded at 10FPS. The KITTI dataset includes
+long outdoor driving sequences with several loops. Scale drift is a known chal-
+lenge in this setting. In order to correct scale drift, monocular methods must
+implement some form of loop closure. However, proximity-based loop detection
+is insufficient if there is significant scale drift, so none of the approaches re-
+lying solely on this mechanism perform well here. DPV-SLAM++, which also
+uses image retrieval, achieves the second-lowest average error among all reported
+methods, while averaging 39-FPS.
+EuRoC-MAV [1] We evaluate monocular SLAM on the Machine-Hall and
+Vicon 1 & 2 sequences from the EuRoC MAV dataset. Video is recorded at 20
+12
+Lipson, Teed, Deng
+360
+desk desk2 floor plant room
+rpy
+teddy
+xyz
+Avg
+FPS VRAM
+ORB-SLAM2 [18]
+X
+0.071
+X
+0.023
+X
+X
+X
+X
+0.010
+-
+ORB-SLAM3 [2]
+X
+0.017 0.210
+X
+0.034
+X
+X
+X
+0.009
+-
+DeepTAM [52]
+0.111 0.053 0.103 0.206 0.064 0.239 0.093 0.144 0.036 0.116
+TartanVO [36]
+0.178 0.125 0.122 0.349 0.297 0.333 0.049 0.339 0.062 0.206
+DeepV2D [30]
+0.243 0.166 0.379 1.653 0.203 0.246 0.105 0.316 0.064 0.375
+DeepV2D [TartanAir] 0.182 0.652 0.633 0.579 0.582 0.776 0.053 0.602 0.150 0.468
+DeepFactors [4]
+0.159 0.170 0.253 0.169 0.305 0.364 0.043 0.601 0.035 0.233
+DeFlowSLAM [45]
+0.159 0.016 0.030 0.169 0.048 0.538 0.021 0.039 0.009 0.114
+GO-SLAM [51]
+0.089 0.016 0.028 0.025 0.026 0.052 0.019 0.048 0.010 0.035 6.4§
+7.2G§
+DROID-SLAM [31]
+0.111 0.018 0.042 0.021 0.016 0.049 0.026 0.048 0.012 0.038
+30
+8.5G§
+DPV-SLAM
+0.112 0.018 0.029 0.057 0.021 0.330 0.030 0.084 0.010 0.076
+30
+4.0G
+DPV-SLAM++
+0.132 0.018 0.029 0.050 0.022 0.096 0.032 0.098 0.010 0.054
+30
+6.0G
+Table 1: ATE on the TUM-RGBD benchmark. Bolded indicates the best result. We
+report runtimes and memory for methods whose average error is similar to ours. We
+perform similarly to other methods based on DROID-SLAM [31, 45, 51] (0.054-0.076
+vs 0.035-0.114), however these approaches are more expensive (4.0-6.0G vs 7.2-8.5G).
+The results in this table, combined with Tab 2, indicate that our approach is robust
+both indoors and outdoors.
+Sequence
+06
+07
+09
+10
+Avg
+trel
+rrel
+trel
+rrel
+trel
+rrel
+trel
+rrel
+trel
+rrel
+TartanVO [36]
+4.72
+2.95
+4.32
+3.41
+6.0
+3.11
+6.89
+2.73
+5.48
+3.05
+DPV-SLAM++
+4.95
+0.16
+1.29
+0.24
+17.69
+0.23
+6.32
+0.23
+7.56
+0.22
+(a) Comparison with TartanVO
+00
+01
+02
+03
+04
+05
+06
+07
+08
+09
+10
+Avg
+FPS
+ORB-SLAM2 [18]
+8.27
+X
+26.86 1.21 0.77
+7.91
+12.54
+3.44 46.81 76.54 6.61
+-
+34
+ORB-SLAM3 [2]
+6.77
+X
+30.500 1.036 0.930 5.542 16.605 9.700 60.687 7.899 8.650
+-
+34
+LDSO [11]
+9.32
+11.68 31.98
+2.85
+1.22
+5.1
+13.55
+2.96 129.02 21.64 17.36 22.42 49
+DROID-VO [31]
+98.43
+84.2
+108.8
+2.58
+0.93 59.27
+64.4
+24.2
+64.55
+71.8 16.91 54.19
+17
+DPVO [32]
+113.21 12.69 123.4
+2.09 0.68 58.96 54.78 19.26 115.9
+75.1 13.63 53.61
+48
+DROID-SLAM [31]
+92.1
+344.6
+X
+2.38
+1.00 118.5 62.47 21.78 161.6
+X
+118.7
+-
+17
+DPV-SLAM
+112.8 11.50 123.53 2.50
+0.81 57.80 54.86 18.77 110.49 76.66 13.65 53.03
+39
+DPV-SLAM++
+8.30
+11.86 39.64
+2.50
+0.78
+5.74 11.60 1.52 110.9 76.70 13.70 25.76
+39
+(b) Comparison with other approaches using ATE[m].
+Table 2: Monocular SLAM on the KITTI [12] training set. TartanVO only reports
+results for sequences 6,7,9,10 using the trel/rrel metrics. Compared to other general
+approaches to SLAM, our method performs well, while running at 39 FPS. [45, 51]
+do not report results on KITTI. This table shows the challenge of generalizing across
+domains: DROID-SLAM performs exceptionally well on indoor datasets, but struggles
+on KITTI. In turn, classical approaches perform well on KITTI, but are comparatively
+inaccurate indoors. DPV-SLAM++ performs well on both.
+FPS. This benchmark contains long sequences with motion blur, over/under-
+exposed images, and rapid camera movement. On EuRoC, our method performs
+similarly to DROID-SLAM (0.024 vs 0.022 ATE), while running 2.5x faster (50
+FPS vs 20 FPS) using a quarter of the memory (5.0G vs 20G). Compared to the
+Deep Patch Visual SLAM
+13
+MH01 MH02 MH03 MH04 MH05 V101 V102 V103 V201 V202 V203
+Avg
+FPS VRAM
+DeepFactors [4]
+1.587 1.479 3.139 5.331 4.002 1.520 0.679 0.900 0.876 1.905 1.021 2.040
+DeepV2D [30]†
+0.739 1.144 0.752 1.492 1.567 0.981 0.801 1.570 0.290 2.202 2.743 1.298
+DeepV2D [TartanAir]† 1.614 1.492 1.635 1.775 1.013 0.717 0.695 1.483 0.839 1.052 0.591 1.173
+TartanVO1 [36]†
+0.639 0.325 0.550 1.153 1.021 0.447 0.389 0.622 0.433 0.749 1.152 0.680
+ORB-SLAM [17]
+0.071 0.067 0.071 0.082 0.060 0.015 0.020
+X
+0.021 0.018
+X
+-
+DSO [11]†
+0.046 0.046 0.172 3.810 0.110 0.089 0.107 0.903 0.044 0.132 1.152 0.601
+LDSO [11]
+0.046 0.035 0.175 1.954 0.385 0.093 0.085
+-
+0.043 0.405
+-
+-
+SVO [8]†
+0.100 0.120 0.410 0.430 0.300 0.070 0.210
+X
+0.110 0.110 1.080
+-
+ORB-SLAM3 [2]
+0.016 0.027 0.028 0.138 0.072 0.033 0.015 0.033 0.023 0.029
+X
+-
+DPVO [32]†
+0.087 0.055 0.158 0.137 0.114 0.050 0.140 0.086 0.057 0.049 0.211 0.105
+GO-SLAM [51]
+0.016 0.014 0.023 0.045 0.045 0.037 0.011 0.023 0.016 0.010 0.022 0.024 6.8§
+14G§
+DROID-SLAM [31]
+0.013 0.014 0.022 0.043 0.043 0.037 0.012 0.020 0.017 0.013 0.014 0.022
+20
+20G§
+DPV-SLAM
+0.013 0.016 0.022 0.043 0.041 0.035 0.008 0.015 0.020 0.011 0.040 0.024
+50
+5.0G
+DPV-SLAM++
+0.013 0.016 0.021 0.041 0.041 0.035 0.010 0.015 0.021 0.011 0.023 0.023
+50
+7.0G
+Table 3: Monocular SLAM on the EuRoC datasets, ATE[m]. † denotes visual odometry
+methods. We report runtimes and memory for methods whose average error is similar
+to ours. We perform marginally worse than DROID-SLAM (0.024 vs 0.022), but use
+significantly less GPU memory (5G vs 20G) and run 2.5x faster (50 FPS vs 20 FPS).
+base DPVO system, we achieve 4x lower error (0.105→0.024), with only a small
+reduction in speed (60→50-FPS) and increase in cost (4G→5G).
+TartanAir [37] We evaluate monocular SLAM on the TartanAir test set from
+the ECCV 2020 SLAM competition. Compared to existing approaches, DPV-
+SLAM outperforms DROID-SLAM by a sizeable margin (0.16 vs 0.24). Our
+method runs at 27 FPS, while DROID-SLAM runs at 8-FPS.
+Monocular
+MH000 MH001 MH002 MH003 MH004 MH005 MH006 MH007 Avg
+ORB-SLAM [17]
+1.30
+0.04
+2.37
+2.45
+X
+X
+21.47
+2.73
+-
+DeepV2D [30]
+6.15
+2.12
+4.54
+3.89
+2.71
+11.55
+5.53
+3.76
+5.03
+TartanVO [36]
+4.88
+0.26
+2.00
+0.94
+1.07
+3.19
+1.00
+2.04
+1.92
+DPVO [32]
+0.21
+0.04
+0.04
+0.08
+0.58
+0.17
+0.11
+0.15
+0.17
+DeFlowSLAM [45]
+0.63
+0.06
+0.02
+0.01
+2.80
+0.20
+0.31
+0.45
+0.56
+DROID-SLAM [31]
+0.08
+0.05
+0.04
+0.02
+0.01
+1.31
+0.30
+0.07
+0.24
+DPV-SLAM
+0.23
+0.05
+0.04
+0.04
+0.54
+0.15
+0.07
+0.14
+0.16
+DPV-SLAM++
+0.21
+0.04
+0.04
+0.04
+0.92
+0.17
+0.11
+0.13
+0.21
+Table 4: Results on the TartanAir monocular benchmark (ATE[m]). We outperform
+existing approaches.
+14
+Lipson, Teed, Deng
+10
+20
+30
+40
+50
+60
+70
+Camera Frames-Per-Second
+Mean FPS
+   (50.2)
+Inference Speed Distribution on EuRoC
+(a) Latency on EuRoC [1]
+10
+20
+30
+40
+50
+Camera Frames-Per-Second
+Mean FPS
+   (39.4)
+Inference Speed Distribution on KITTI
+(b) Latency on KITTI [12]
+Fig. 9: The distribution of inference speed. We run DPV-SLAM on EuRoC and KITTI,
+and sample the current FPS uniformly over the runtime. In both cases, there are two
+modes, the larger being representative of the odometry runtime and the smaller being
+representative of the loop closure. On EuRoC, the loop closure causes the runtime to
+drop from 58 to 42 FPS. On KITTI, the infrequent loop closure causes the speed to
+briefly dip below real-time (5-10 FPS) before returning to 40-FPS. The average speed
+on EuRoC and KITTI are 50-FPS and 39-FPS, or 2.5x and 3.9x real-time, respectively.
+5
+Limitations
+DPV-SLAM requires a GPU, as opposed to classical approaches, and only pro-
+vides a sparse 3D reconstruction. The cost of the global bundle adjustment layer
+also scales quadratically with the number of pose variables, which is why we
+limit its range to 1000 (key) frames. See the Appendix for details.
+DPV-SLAM, like most monocular systems, sometimes suffers from scale-drift
+in outdoor environments, though orthogonal work has addressed this problem
+using monocular depth networks [47]. The image retrieval is also susceptible
+to the occasional false-positive detection. The classical loop closure also incurs
+an additional 2G GPU memory overhead due to the invocation of the U-Net
+keypoint detector [33].
+6
+Conclusion
+We introduce DPV-SLAM, a system for monocular visual SLAM. DPV-SLAM
+generalizes well to different domains, and is efficient. It runs at a relatively
+consistent frame-rate and only requires a single GPU. We evaluate on EuRoC,
+TartanAir, TUM-RGBD and KITTI. We show that our approach is robust across
+domains, and is comparable to, or better than the SOTA on several datasets,
+while running faster and using less compute. We hope this will be a valuable
+resource for the computer vision community. This work was partially supported
+by the National Science Foundation.
+References
+1. Burri, M., Nikolic, J., Gohl, P., Schneider, T., Rehder, J., Omari, S., Achtelik,
+M.W., Siegwart, R.: The euroc micro aerial vehicle datasets. The International
+Journal of Robotics Research 35(10), 1157–1163 (2016)
+Deep Patch Visual SLAM
+15
+2. Campos, C., Elvira, R., Rodríguez, J.J.G., Montiel, J.M., Tardós, J.D.: Orb-slam3:
+An accurate open-source library for visual, visual–inertial, and multimap slam.
+IEEE Transactions on Robotics 37(6), 1874–1890 (2021)
+3. Civera, J., Davison, A.J., Montiel, J.M.: Inverse depth parametrization for monoc-
+ular slam. IEEE transactions on robotics 24(5), 932–945 (2008)
+4. Czarnowski, J., Laidlow, T., Clark, R., Davison, A.J.: Deepfactors: Real-time prob-
+abilistic dense monocular slam. IEEE Robotics and Automation Letters 5(2), 721–
+728 (2020)
+5. Dai, A., Chang, A.X., Savva, M., Halber, M., Funkhouser, T., Nießner, M.: Scannet:
+Richly-annotated 3d reconstructions of indoor scenes. In: Proceedings of the IEEE
+conference on computer vision and pattern recognition. pp. 5828–5839 (2017)
+6. Engel, J., Koltun, V., Cremers, D.: Direct sparse odometry. IEEE transactions on
+pattern analysis and machine intelligence 40(3), 611–625 (2017)
+7. Engel, J., Usenko, V., Cremers, D.: A photometrically calibrated benchmark for
+monocular visual odometry. arXiv preprint arXiv:1607.02555 (2016)
+8. Forster, C., Pizzoli, M., Scaramuzza, D.: Svo: Fast semi-direct monocular visual
+odometry. In: 2014 IEEE international conference on robotics and automation
+(ICRA). pp. 15–22. IEEE (2014)
+9. Fu, T., Su, S., Wang, C.: islam: Imperative slam. arXiv preprint arXiv:2306.07894
+(2023)
+10. Gálvez-López, D., Tardos, J.D.: Bags of binary words for fast place recognition in
+image sequences. IEEE Transactions on Robotics 28(5), 1188–1197 (2012)
+11. Gao, X., Wang, R., Demmel, N., Cremers, D.: Ldso: Direct sparse odometry with
+loop closure. In: 2018 IEEE/RSJ International Conference on Intelligent Robots
+and Systems (IROS). pp. 2198–2204. IEEE (2018)
+12. Geiger, A., Lenz, P., Urtasun, R.: Are we ready for autonomous driving? the kitti
+vision benchmark suite. In: 2012 IEEE conference on computer vision and pattern
+recognition. pp. 3354–3361. IEEE (2012)
+13. Keetha, N., Karhade, J., Jatavallabhula, K.M., Yang, G., Scherer, S., Ramanan,
+D., Luiten, J.: Splatam: Splat, track & map 3d gaussians for dense rgb-d slam.
+arXiv preprint (2023)
+14. Li, H., Gu, X., Yuan, W., Yang, L., Dong, Z., Tan, P.: Dense rgb slam with neural
+implicit maps. arXiv preprint arXiv:2301.08930 (2023)
+15. Li, R., Wang, S., Long, Z., Gu, D.: Undeepvo: Monocular visual odometry through
+unsupervised deep learning. In: 2018 IEEE international conference on robotics
+and automation (ICRA). pp. 7286–7291. IEEE (2018)
+16. Lindenberger, P., Sarlin, P.E., Pollefeys, M.: Lightglue: Local feature matching
+at light speed. In: Proceedings of the IEEE/CVF International Conference on
+Computer Vision. pp. 17627–17638 (2023)
+17. Mur-Artal, R., Montiel, J.M.M., Tardos, J.D.: Orb-slam: a versatile and accurate
+monocular slam system. IEEE transactions on robotics 31(5), 1147–1163 (2015)
+18. Mur-Artal, R., Tardós, J.D.: Orb-slam2: An open-source slam system for monoc-
+ular, stereo, and rgb-d cameras. IEEE transactions on robotics 33(5), 1255–1262
+(2017)
+19. Riba, E., Mishkin, D., Ponsa, D., Rublee, E., Bradski, G.: Kornia: an open
+source differentiable computer vision library for pytorch. In: Proceedings of the
+IEEE/CVF Winter Conference on Applications of Computer Vision. pp. 3674–
+3683 (2020)
+20. Rosinol, A., Leonard, J.J., Carlone, L.: Nerf-slam: Real-time dense monocular slam
+with neural radiance fields. In: 2023 IEEE/RSJ International Conference on Intel-
+ligent Robots and Systems (IROS). pp. 3437–3444. IEEE (2023)
+16
+Lipson, Teed, Deng
+21. Rublee, E., Rabaud, V., Konolige, K., Bradski, G.: Orb: An efficient alternative to
+sift or surf. In: 2011 International conference on computer vision. pp. 2564–2571.
+Ieee (2011)
+22. Schneider, T., Dymczyk, M., Fehr, M., Egger, K., Lynen, S., Gilitschenski, I.,
+Siegwart, R.: maplab: An open framework for research in visual-inertial mapping
+and localization. IEEE Robotics and Automation Letters 3(3), 1418–1425 (2018)
+23. Schops, T., Sattler, T., Pollefeys, M.: Bad slam: Bundle adjusted direct rgb-d slam.
+In: Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern
+Recognition. pp. 134–144 (2019)
+24. Shen, S., Cai, Y., Wang, W., Scherer, S.: Dytanvo: Joint refinement of visual odom-
+etry and motion segmentation in dynamic environments. In: 2023 IEEE Interna-
+tional Conference on Robotics and Automation (ICRA). pp. 4048–4055. IEEE
+(2023)
+25. Shin, S., Kim, J., Halilaj, E., Black, M.J.: Wham: Reconstructing world-grounded
+humans with accurate 3d motion. In: Proceedings of the IEEE/CVF Conference
+on Computer Vision and Pattern Recognition. pp. 2070–2080 (2024)
+26. Strasdat, H., Montiel, J., Davison, A.J.: Scale drift-aware large scale monocular
+slam. Robotics: science and Systems VI 2(3), 7 (2010)
+27. Straub, J., Whelan, T., Ma, L., Chen, Y., Wijmans, E., Green, S., Engel, J.J.,
+Mur-Artal, R., Ren, C., Verma, S., et al.: The replica dataset: A digital replica of
+indoor spaces. arXiv preprint arXiv:1906.05797 (2019)
+28. Sturm, J., Engelhard, N., Endres, F., Burgard, W., Cremers, D.: A benchmark for
+the evaluation of rgb-d slam systems. In: 2012 IEEE/RSJ international conference
+on intelligent robots and systems. pp. 573–580. IEEE (2012)
+29. Sucar, E., Liu, S., Ortiz, J., Davison, A.J.: imap: Implicit mapping and position-
+ing in real-time. In: Proceedings of the IEEE/CVF International Conference on
+Computer Vision. pp. 6229–6238 (2021)
+30. Teed, Z., Deng, J.: Deepv2d: Video to depth with differentiable structure from
+motion. arXiv preprint arXiv:1812.04605 (2018)
+31. Teed, Z., Deng, J.: Droid-slam: Deep visual slam for monocular, stereo, and rgb-
+d cameras. Advances in neural information processing systems 34, 16558–16569
+(2021)
+32. Teed, Z., Lipson, L., Deng, J.: Deep patch visual odometry. Advances in Neural
+Information Processing Systems (2023)
+33. Tyszkiewicz, M., Fua, P., Trulls, E.: Disk: Learning local features with policy gra-
+dient. Advances in Neural Information Processing Systems 33, 14254–14265 (2020)
+34. Umeyama, S.: Least-squares estimation of transformation parameters between two
+point patterns. IEEE Transactions on Pattern Analysis & Machine Intelligence
+13(04), 376–380 (1991)
+35. Wang, S., Clark, R., Wen, H., Trigoni, N.: Deepvo: Towards end-to-end visual
+odometry with deep recurrent convolutional neural networks. In: 2017 IEEE in-
+ternational conference on robotics and automation (ICRA). pp. 2043–2050. IEEE
+(2017)
+36. Wang, W., Hu, Y., Scherer, S.: Tartanvo: A generalizable learning-based vo. In:
+Conference on Robot Learning. pp. 1761–1772. PMLR (2021)
+37. Wang, W., Zhu, D., Wang, X., Hu, Y., Qiu, Y., Wang, C., Hu, Y., Kapoor,
+A., Scherer, S.: Tartanair: A dataset to push the limits of visual slam. In: 2020
+IEEE/RSJ International Conference on Intelligent Robots and Systems (IROS).
+pp. 4909–4916. IEEE (2020)
+Deep Patch Visual SLAM
+17
+38. Wang, X., Maturana, D., Yang, S., Wang, W., Chen, Q., Scherer, S.: Improving
+learning-based ego-motion estimation with homomorphism-based losses and drift
+correction. In: 2019 IEEE/RSJ International Conference on Intelligent Robots and
+Systems (IROS). pp. 970–976. IEEE (2019)
+39. Wenzel, P., Wang, R., Yang, N., Cheng, Q., Khan, Q., von Stumberg, L., Zeller,
+N., Cremers, D.: 4seasons: A cross-season dataset for multi-weather slam in au-
+tonomous driving. In: Pattern Recognition: 42nd DAGM German Conference,
+DAGM GCPR 2020, Tübingen, Germany, September 28–October 1, 2020, Pro-
+ceedings 42. pp. 404–417. Springer (2021)
+40. Wofk, D., Ranftl, R., Müller, M., Koltun, V.: Monocular visual-inertial depth
+estimation. In: 2023 IEEE International Conference on Robotics and Automa-
+tion (ICRA). pp. 6095–6101 (2023). https://doi.org/10.1109/ICRA48891.2023.
+10161013
+41. Xu, S., Xiong, H., Wu, Q., Wang, Z.: Attention-based long-term modeling for deep
+visual odometry. In: 2021 Digital Image Computing: Techniques and Applications
+(DICTA). pp. 1–8. IEEE (2021)
+42. Yang, N., Stumberg, L.v., Wang, R., Cremers, D.: D3vo: Deep depth, deep pose and
+deep uncertainty for monocular visual odometry. In: Proceedings of the IEEE/CVF
+conference on computer vision and pattern recognition. pp. 1281–1292 (2020)
+43. Ye, V., Pavlakos, G., Malik, J., Kanazawa, A.: Decoupling human and camera
+motion from videos in the wild. In: Proceedings of the IEEE/CVF conference on
+computer vision and pattern recognition. pp. 21222–21232 (2023)
+44. Ye, W., Lan, X., Chen, S., Ming, Y., Yu, X., Bao, H., Cui, Z., Zhang, G.: Pvo:
+Panoptic visual odometry. In: Proceedings of the IEEE/CVF Conference on Com-
+puter Vision and Pattern Recognition. pp. 9579–9589 (2023)
+45. Ye, W., Yu, X., Lan, X., Ming, Y., Li, J., Bao, H., Cui, Z., Zhang, G.: Deflowslam:
+Self-supervised scene motion decomposition for dynamic dense slam (2023)
+46. Yin, W., Cai, Z., Wang, R., Wang, F., Wei, C., Mei, H., Xiao, W., Yang, Z., Sun, Q.,
+Yamashita, A., et al.: Whac: World-grounded humans and cameras. arXiv preprint
+arXiv:2403.12959 (2024)
+47. Yin, W., Zhang, C., Chen, H., Cai, Z., Yu, G., Wang, K., Chen, X., Shen, C.: Met-
+ric3d: Towards zero-shot metric 3d prediction from a single image. In: Proceedings
+of the IEEE/CVF International Conference on Computer Vision. pp. 9043–9053
+(2023)
+48. Yin, Z., Shi, J.: Geonet: Unsupervised learning of dense depth, optical flow and
+camera pose. In: Proceedings of the IEEE conference on computer vision and pat-
+tern recognition. pp. 1983–1992 (2018)
+49. Zhan, H., Weerasekera, C.S., Bian, J.W., Garg, R., Reid, I.: Df-vo: What should
+be learnt for visual odometry? arXiv preprint arXiv:2103.00933 (2021)
+50. Zhang, J., Henein, M., Mahony, R., Ila, V.: Vdo-slam: a visual dynamic object-
+aware slam system. arXiv preprint arXiv:2005.11052 (2020)
+51. Zhang, Y., Tosi, F., Mattoccia, S., Poggi, M.: Go-slam: Global optimization for con-
+sistent 3d instant reconstruction. In: Proceedings of the IEEE/CVF International
+Conference on Computer Vision. pp. 3727–3737 (2023)
+52. Zhou, H., Ummenhofer, B., Brox, T.: Deeptam: Deep tracking and mapping. In:
+Proceedings of the European conference on computer vision (ECCV). pp. 822–838
+(2018)
+53. Zhu, Z., Peng, S., Larsson, V., Xu, W., Bao, H., Cui, Z., Oswald, M.R., Pollefeys,
+M.: Nice-slam: Neural implicit scalable encoding for slam. In: Proceedings of the
+IEEE/CVF Conference on Computer Vision and Pattern Recognition. pp. 12786–
+12796 (2022)
+18
+Lipson, Teed, Deng
+A
+Bundle-Adjustment Efficiency
+In Fig. 10, we show the cost of bundle adjustment on the KITTI dataset as a
+function of the number of pose variables. In this experiment, we lift the 1000-
+pose limit which we used to obtain results in the main paper. We compare the
+dense implementation from DPVO with our block-sparse implementation. As
+expected, the block-sparse implementation is much more efficient for moderate-
+to-large patch graphs. For very small graphs (i.e., odometry-only), the dense
+implementation is better since the patch graph has high connectivity and lacks
+the additional indexing overhead from the block-sparse version. The number of
+depth variables and edges remains constant in these experiments. In the block
+sparse version, the Cholesky decomposition of the pose-block in the schur com-
+plement in t is the memory and runtime bottleneck.
+0
+500
+1000
+1500
+2000
+# Poses
+0.0
+2.5
+5.0
+7.5
+10.0
+12.5
+15.0
+17.5
+VRAM (Gb)
+Bundle Adjustment Runtime on KITTI
+Dense BA
+Block-Sparse BA
+(a) BA VRAM on KITTI.
+0
+500
+1000
+1500
+2000
+# Poses
+0
+1
+2
+3
+4
+5
+6
+Runtime (s)
+Bundle Adjustment VRAM on KITTI
+Dense BA
+Block-Sparse BA
+(b) BA runtime on KITTI.
+Fig. 10: The cost of running global optimization on patch graphs, comparing our block-
+sparse implementation to the dense one. The former is significantly faster and cheaper
+for large patch graphs, but slightly less optimal for small graphs. We switch between
+the two implementations on-the-fly depending on the size.

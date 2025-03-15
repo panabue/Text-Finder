@@ -1,0 +1,1002 @@
+Intelligent Energy Management: Remaining 
+Useful Life Prediction and Charging Automation 
+System Comprised of Deep Learning and the 
+Internet of Things 
+ 
+Biplov Panerua, Bishwash Panerub,,*,, DP Sharma MainalilC 
+aDepartment of Electronics, Communication and Information Engineering, Nepal Engineering College, Pokhara 
+University, Bhaktapur Nepal 
+bDepartment of Applied Sciences and Chemical Engineering, Institute of Engineering, Pulchowk Campus, 
+Tribhuvan University, Lalitpur, Nepal 
+CDelft University of Netherlands 
+*Corresponding author: Biplov Paneru 
+Email: biplovp019402@nec.edu.np 
+ 
+Abstract: 
+Remaining Useful Life (RUL) of battery is an important parameter to know the battery's remaining life and need for 
+recharge. The goal of this research project is to develop machine learning-based models for the battery RUL dataset. 
+Different ML models are developed to classify the RUL of the vehicle, and the IoT (Internet of Things)  concept is 
+simulated for automating the charging system and managing any faults aligning. The graphs plotted depict the 
+relationship between various vehicle parameters using the Blynk IoT platform. Results show that the catboost, Multi-
+Layer Perceptron (MLP), Gated Recurrent Unit (GRU), and hybrid model developed could classify RUL into three 
+classes with 99% more accuracy. The data is fed using the tkinter GUI for simulating artificial intelligence (AI)-based 
+charging, and with a pyserial backend, data can be entered into the Esp-32 microcontroller for making charge discharge 
+possible with the model's predictions. Also, with an IoT system, the charging can be disconnected, monitored, and 
+analyzed for automation. The results show that an accuracy of 99% can be obtained on models MLP, catboost model 
+and similar accuracy on GRU model can be obtained, and finally relay-based triggering can be made by prediction 
+through the model used for automating the charging and energy-saving mechanism. By showcasing an exemplary 
+Blynk platform-based monitoring and automation phenomenon, we further present innovative ways of monitoring 
+parameters and automating the system. 
+Keywords: RUL, power management, Internet of Things, catboost, cross-validation 
+1. Introduction 
+A battery's ability to store and release energy steadily diminishes with use as a result of a number of variables, 
+including temperature changes, chemical deterioration, and charge-discharge cycles. An estimate of how long the 
+battery should continue to function dependably is given by the RUL. Predicting RUL with accuracy is crucial to 
+sustaining the functionality and security of battery-powered devices. It makes preventative maintenance possible, aids 
+in replacement planning, and guarantees that the system will continue to function without unplanned breakdowns. 
+Machine learning has lately surfaced as a viable modeling tool in the field of energy storage to ascertain the battery's 
+remaining usable life, health, and level of charge. Initially, we examine the two battery model types that have been 
+researched the most in the literature for battery state prediction [1]: With the recent developments in artificial 
+intelligence (AI) and machine learning (ML), research and development of battery state assessment techniques have 
+greatly improved [2]. An integral component of the design of an electric vehicle (EV) is the battery management 
+system (BMS) [3]. How the battery will age over time is hard to predict [4]. Particularly in urban traffic, the lithium 
+cells experience high dynamic loads and very little static operation. An essential component of the EV's energy 
+management system and one that guarantees dependable functioning is the Battery Management System (BMS) [7]. 
+ 
+The authors point out the main difficulties, particularly in executing in situ computations, high-throughput data 
+gathering, and accurate modeling over extended periods of time. All things considered, this work offers insights into 
+explainable, real-time machine learning for future battery production, administration, and optimization [1]. This article 
+reviews the most recent findings on widely used ML techniques for predicting the SOC and SOH, giving a thorough 
+overview of both BMSs and ML. It also emphasizes the difficulties involved. This research highlights the prevalence 
+of a support vector machine (SVM), fuzzy logic (FL), k-nearest neighbors (KNN) algorithm, genetic algorithm (GA), 
+and transfer learning in SOC and SOH estimates, in addition to more conventional models such equivalent circuit 
+models (ECMs) and electrochemical battery models [2]. The performance of the suggested techniques is examined 
+using real-time Lithium Ion battery data at various temperature profiles. The study takes into account the R-Square () 
+and Root Mean Square Error (RMSE) indices to verify the effectiveness of the suggested approach. The study's 
+findings indicate that the neural network-based prediction method—which has both high and low RMSE indices—is 
+the best one. The advantages of the suggested strategy include its great accuracy and simplicity. Applications for 
+electric vehicles can make use of this anticipated battery model [3]. In this work, the ensemble random forest model 
+is used by the authors to minimize data degradation for RL prediction. For the purpose of predicting RL, the model 
+makes it possible to gather data and use random forest and ensemble random forest for preprocessing and 
+classification. R2 and root mean square error are used in the simulation (RMSE). According to the simulation, the 
+ensemble random forest model produces predictions with a higher accuracy [4]. In addition to discussing 
+improvements to the LSTM (long short-term memory) and Bi-LSTM (bidirectional long short-term memory) methods, 
+this work offers a methodology for comparative analysis that focuses on deep learning and classical approaches. 
+Performance metrics including MSE, MAE, RMSE, and R-squared are used to evaluate the suggested approaches. By 
+forecasting LIB performance, the study hopes to further technological progress in the electric vehicle sector. The 
+remainder of the study is structured as follows: materials and techniques; preparation and analysis of LIB data; 
+machine learning model proposal; assessments; and final remarks with suggestions for further research [5]. The set of 
+mined attributes is then processed by three reliable machine learning (ML) algorithms: decision trees, random forests, 
+and linear regression. The Panasonic Lithium-Ion (Li-Ion) battery cells, made available to the public by McMaster 
+University, are used to test the applicability. MATLAB is used to implement the feature extraction and machine 
+learning (ML) based SoC prediction modules. The prediction performance is evaluated using the correlation 
+coefficient, mean absolute error, and root mean square error. The correlation coefficient value of 0.9988 indicates that 
+the random forest regressor outperforms the planned ones, according to the data [6]. 
+The performance of state-of-the-art machine learning techniques in SOC forecasting with regression under dynamic 
+loads is compared in this research. Using multisine signals, a unique dynamic charge/discharge test is performed to 
+generate data. The findings support the notion that one major benefit of advanced machine learning models is their 
+capacity to identify significant correlations between the variables of interest. Studies have shown that State-of-the-Art 
+ML techniques are superior to standard ML approaches and effective in solving SOC prediction problems because 
+they can capture cell dynamics and store historical data, both of which are essential for forecasting future charge levels 
+[7]. Using only 10% of the charge curve as input data, the approach can accurately predict a full battery charge curve 
+with an error of less than 2% by combining a feature extraction phase with a multiple linear regression step. Using 
+publicly-available datasets, the approach is further validated across additional battery chemistries (LiCoO2-based). 
+With only 5% of the charge curve as input data, the LiCoO2-based battery's charge curve prediction error is only about 
+2%, demonstrating the generalizability of the methodology developed for battery cycling curve prediction. The 
+presented technique opens the door to quick onboard battery health status estimate and monitoring during real-world 
+applications [8]. Characterizing the uncertainty in a model's predictions is crucial for making well-informed decisions 
+on field control tactics or lab battery design. This study analyzes the state-of-the-art probabilistic machine learning 
+models for health diagnostics and prognostics, after giving an overview of lithium-ion battery degradation. There is a 
+thorough discussion of the different approaches, their benefits, and drawbacks, with a major focus on probabilistic 
+machine learning and uncertainty quantification. Finally, prospects for research and development as well as future 
+trends are explored [9]. The LPC2148 ARM board's sensors provide the parameters, such as voltage, current, and 
+temperature. The values from these sensors are fed as a dataset into the algorithms of the Long Short-Term Memory 
+(LSTM), Decision Tree (DT), K-Nearest Neighbors (KNN), Naïve Bayes (NB), and Support Vector Machine (SVM). 
+The experimental findings show that the Naïve Bayes algorithm produced the best results for real-time data in terms 
+of metrics like F1-score, accuracy, precision, and recall. With an accuracy rate of 88%, Naïve Bayes was utilized to 
+determine the Remaining Battery Capacity, which aids in the prediction of lithium-ion battery aging [10]. The average 
+of the voltage for the test data plus three standard deviations was established by the authors as an evaluation metric 
+after the root mean squared error (RMSE) of the voltage was verified at several lower OCV limit settings. After 
+evaluating eight typical machine learning models, the multilayer perceptron (MLP) had the best extrapolation 
+accuracy, with a value of 92.7 mV. The MLP exhibited the highest extrapolation accuracy, as confirmed by its 
+accuracy of 102.4 mV, when we assessed models using published experimental data [11]. Lithium polymer battery 
+cells are used in this work's tests to assess performance metrics such voltage, current, and battery capacity. Afterwards, 
+modeling techniques based on physics and machine learning are created to investigate their capacity to forecast SoC. 
+High C-rate measurements (between 1 and 4 degrees Celsius) are utilized for testing, calibration, and training models. 
+The findings demonstrate that, at various C-rates, the Pseudo-2D electrochemical model can estimate SoC to within 
+roughly 2% of the root mean squared error (RMSE). For battery SoC predictions, however, the Feed Forward Neural 
+Network modeling approach with Butterworth and Hampel filters obtained RMSE values that were less than or almost 
+1% [12]. Using Li3PO4 as a prototype, the suggested NN model is implemented. The built NN model has a prediction 
+error of 0.0376 e/atom. Molecular dynamics (MD) simulations are carried out under a uniform electric field of 0.1 
+V/Å in combination with a NN interatomic potential. An enhanced mean square displacement of Li along the electric 
+field is achieved, which appears physically plausible. Furthermore, it is discovered that Li migration is significantly 
+impacted by external forces that originate from the Born effective charges' off-diagonal terms and go perpendicular 
+to the electric field. Lastly, more MD simulations are run to investigate the Li motion in a non-uniform structure. 
+Despite the lack of intentionally induced flaws, the results show that Li migration happens in different places. This 
+phenomenon could be explained by the Li ions in the local minima being susceptible to the electric field. We anticipate 
+that any ionic substance can be utilized using the suggested NN approach, which will provide atomic-scale clarification 
+of ion behavior in electric fields [25]. 
+Many systems have been on research for development of sustainable power management [1-13] and fuel solutions 
+[14-25] for vehicle systems, especially. A significant research gap exists in predicting the useful life of batteries and 
+also in the automation in the energy field, like battery charging. This work exclusively offers an idea to automate 
+battery recharging in a smart manner. With the integration of AI and IoT technology, this work allows authors to 
+develop a system for automating battery charging. 
+ 
+ 
+Fig. 1. Battery RUL 
+2. Methodology 
+The model was developed in Python to determine the parameters to create the FCEV using the design of a machine 
+learning-based models that used the, RUL of the vehicle, with aid of various parameters like charging cycles, discharge 
+time, maximum voltage etc.. the RUL, can be predicted. 
+ 
+Fig 2. Graphical representations of charging conditions 
+A battery's estimated remaining useful life, or RUL, is the number of cycles or amount of time it may be used 
+efficiently before reaching the end of its operational life. When anticipating when a battery will no longer be able to 
+satisfy the necessary performance standards, RUL is an important quantity in the context of battery-powered systems, 
+such as electric vehicles or renewable energy storage. Figure 1. depicts how a machine's performance gradually 
+deteriorates over time. The remaining useful life (RUL) is the amount of time between point A, which represents the 
+machine's current state, and point B, which represents the moment at which the machine can no longer operate as 
+intended. Predicting the RUL in advance allows for the scheduling of maintenance or replacement, preventing 
+unplanned malfunctions and monetary losses. Precise projections are vital since calculating RUL accurately is 
+necessary for efficient operations and well-informed decision-making. 
+ 
+About dataset  
+Fourteen NMC-LCO 18650 batteries with a nominal capacity of 2.8 Ah were tested by the Hawaii Natural Energy 
+Institute. The batteries were cycled more than a thousand times at 25°C using a CC-CV charge rate of C/2 rate and a 
+discharge rate of 1.5C. The dataset obtained from Kaggle [26] contained following parameters: 
+i. 
+Cycle Index: number of cycle 
+ii. 
+F1: Discharge Time (s) 
+iii. 
+F2: Time at 4.15V (s) 
+iv. 
+F3: Time Constant Current (s) 
+v. 
+F4: Decrement 3.6-3.4V (s) 
+vi. 
+F5: Max. Voltage Discharge (V) 
+vii. 
+F6: Min. Voltage Charge (V) 
+viii. 
+F7: Charging Time (s) 
+ix. 
+Total time (s) 
+x. 
+RUL: target variable (distinguished to three classes as to maintain class balance) 
+ 
+Fig 3. Dataset distribution 
+Dataset Preprocessing 
+Dataset was utilized with last column RUL values were distinguished into 3 classes.  
+Table 1 (a). Dataset distribution phenomenon 
+RUL level 
+class 
+<= 369 
+High 
+>369 <= 748 
+Mid  
+>748 
+Low 
+ 
+The dataset was labeled as per Table 1(a), concept as class balance was too maintained with this equalized distribution 
+of dataset. No significant outliers and unwanted data were present, so the dataset was very suitable to be utilized for 
+the predicting and modeling. 
+Features Extraction 
+The last column RUL values were replaced with their division into classes and categories, which helped for classifying 
+the RUL values. The dataset was developed with features that highlight the voltage and current behavior across each 
+cycle using that source dataset. The remaining usable life (RUL) of the batteries can be estimated using those features. 
+The 14 batteries' synopsis is included in the dataset. The feature set of the dataset is shown in Table 1(b). 
+Table 1 (b). Dataset features set 
+Cycle_Index Discharge 
+Time (s) 
+Decrement 
+3.6-3.4V 
+(s) 
+Max. 
+Voltage 
+Min. 
+Voltage 
+Time at 
+4.15V 
+(s) 
+Time 
+constant 
+Charging 
+time (s) 
+Dischar. 
+(V) 
+Charg. 
+(V) 
+current 
+(s) 
+ 
+ 
+Fig 4. RUL distribution plot with KDE 
+The distribution of batteries' remaining useful lives, or RULs, as seen by histogram in figure 4 and a Kernel Density 
+Estimate (KDE) overlay, is depicted in the plot. The frequency of RUL values over various intervals is shown by the 
+histogram bars, which seem to be consistently distributed between 0 and 1000, indicating a broad range of battery life 
+expectancy within the dataset. A continuous representation of the underlying distribution is provided by the KDE line, 
+which offers a smooth estimate of the probability density function of the RUL. The density peaks between 600 and 
+700, then slightly declines about 500, and then rises again close to the maximum RUL. There may be an upper limit 
+to the projected battery longevity in this dataset, as indicated by the drop-off at the end, which shows that fewer 
+batteries have an RUL near to the maximum value. The distribution's general shape seems to be somewhat flat, 
+suggesting that RUL values are distributed rather evenly, with a sizable percentage of batteries falling inside the whole 
+RUL range. 
+ 
+ 
+ Libraries and algorithm 
+Different ML algorithms were implemented for classification. The model selection for the RUL classification purpose 
+is highlighted in table 2. 
+Table 2. Model usage cases 
+Algorithm 
+Features 
+Use Case 
+Suitability for RUL Prediction 
+MLP (Multi-
+Layer 
+Perceptron) 
+ 
+Fully 
+connected 
+layers  
+ 
+Non-linear 
+activation functions  
+ 
+Backpropagation 
+for training 
+ 
+Complex, 
+non-
+linear relationships  
+ 
+General-purpose 
+prediction tasks 
+ 
+Suitable for capturing 
+complex 
+patterns 
+in 
+RUL prediction  
+ 
+Requires careful tuning 
+of 
+architecture 
+and 
+hyperparameters 
+GRU (Gated 
+Recurrent 
+Unit) 
+ 
+Recurrent 
+connections  
+ 
+Gates 
+for 
+controlling flow of 
+information  
+Handles 
+temporal 
+dependencies 
+ 
+Time-series data 
+ 
+Sequential 
+data 
+prediction 
+ 
+Well-suited for RUL 
+prediction 
+due 
+to 
+handling of sequential 
+dependencies 
+ 
+Effective for modeling 
+time-based 
+features 
+(e.g., 
+Cycle 
+Index, 
+Discharge Time) 
+CatBoost 
+ 
+Gradient 
+boosting  
+Handles categorical 
+features  
+ 
+Robust to noisy data  
+ 
+Built-in handling of 
+missing values 
+ 
+Structured/tabular 
+data  
+ 
+Regression 
+and 
+classification tasks 
+ 
+Suitable for structured 
+data 
+with 
+complex 
+interactions  
+ 
+Effective 
+for 
+RUL 
+prediction when features 
+are 
+tabular 
+and 
+not 
+purely sequential 
+ 
+Pyserial: 
+A complete Python package called PySerial makes it easier for Python programs and serial devices to communicate 
+serially. Users may easily send and receive data through serial connections because to its user-friendly interface for 
+controlling serial ports. PySerial's versatility in connecting with sensors, microcontrollers, and other embedded 
+devices originates from its support for a wide range of serial communication protocols, including RS-232, RS-485, 
+and TTL. The library contains functions for reading and writing data synchronously or asynchronously, as well as 
+methods for specifying serial port parameters including stop bits, parity, and baud rate. 
+ 
+ 
+Splitting the dataset 
+The data was ready for testing and training in this section. Using the train_test_split function, it first divided the 
+synthetic dataset into features (X) and the target variable (y), then into training and testing sets with an 80:20 ratio. 
+Using measures like accuracy and plot-based evaluation such as confusion matrix plots and history plots for deep 
+learning models supports the script-generated predictions on the test set, assesses the model's performance, and reports 
+the evaluation findings. 
+ 
+Proposed Workflow 
+ 
+Fig 5. Proposed workflow 
+As seen in figure 4. The dataset is acquired from Kaggle and then, features are extracted, labelled, different Machine 
+Learning models are developed and fine tuned then evaluated for best performance, finally IoT based automation is 
+done through the models. 
+ 
+Fig 6. System architecture 
+ 
+Evaluation metrics 
+Accuracy: The percentage of right guesses among all the forecasts made is the measure of accuracy. Although it 
+is a widely used statistic for classification algorithms, an imbalanced dataset may lead to deceptive results. 
+Accuracy = 
+𝑇𝑃+𝑇𝑁
+(𝐹𝑃+𝐹𝑁+𝑇𝑃+𝑇𝑃)…………..Equation 1. 
+ 
+Precision: 
+Precision, which is the ratio of true positive forecasts to all positive predictions, is sometimes referred to as 
+positive predictive value. It shows how well the model predicted the good outcomes. 
+ 
+Precision=
+𝑇𝑃
+(𝐹𝑃+𝑇𝑃) ……….Equation 2. 
+ 
+Recall quantifies the percentage of real positive cases that the model properly recognized; it is sometimes 
+referred to as Sensitivity or True Positive Rate. It shows how well the model can capture good examples. 
+ 
+Recall =  
+𝑇𝑃
+(𝐹𝑁+𝑇𝑃)………………Equation 3. 
+F1-Score 
+Precision and recall are harmonic means, and the F1 score strikes a balance between both. When the dataset is 
+unbalanced and both false positives and false negatives must be taken into account, it is helpful. 
+ 
+F1 Score=2 ×
+𝑃𝑟𝑒𝑐𝑖𝑠𝑖𝑜𝑛∗𝑅𝑒𝑐𝑎𝑙𝑙
+𝑃𝑟𝑒𝑐𝑖𝑠𝑖𝑜𝑛+𝑅𝑒𝑐𝑎𝑙𝑙…………Equation 4. 
+Blynk IoT platform 
+ 
+Blynk is a robust Internet of Things (IoT) platform that facilitates the effective development and management of 
+IoT projects by its customers. Even anyone with no programming knowledge can create unique mobile and web 
+applications that can communicate with IoT hardware using its user-friendly interface. The Blynk App, Blynk 
+Server, and Blynk Libraries are the three primary parts of the Blynk platform.  
+ 
+ 
+3 
+Results & Discussions 
+The following results as outcomes were with these models development and microcontroller implementation. 
+3.1 Results of the Developed Model 
+ 
+ 
+Table 3. Catboost Model cross validation result 
+Fold 
+Accuracy 
+Fold 1 
+0.9980 
+Fold 2 
+0.9960 
+Fold 3 
+0.9973 
+Fold 4 
+0.9980 
+Fold 5 
+0.9954 
+Fold 6 
+0.9980 
+Fold 7 
+0.9987 
+Fold 8 
+0.9987 
+Fold 9 
+0.9973 
+Fold 10 
+0.9993 
+Mean Accuracy 
+0.9977 
+Standard Deviation 
+0.0012 
+AS, Seen in the table 3.  catboost model on stratified cross validation shows that an approximate accuracy of 99% can 
+be obtained on testing set for the model with minimum standard deviation of 0.0012. 
+ 
+ 
+Fig 6. Catboost model confusion matrix plot 
+The confusion matrix plot for the catboost model is shown in the figure, in which we can find that the ‘999’ values 
+out of a total of 1002 are classified as class '0'. Similarly, 1000 out of 1004 are classified as class '1', and finally, out 
+of 1007 instances, a total of 981 features set on testing are classified as class ‘2’. The various hyperparameters used 
+along with their descriptions are given in Table 4. 
+Table 4. Catboost Model hyperparameters and description 
+Hyperparameter 
+Value 
+Description 
+Iterations 
+500 
+Number of boosting iterations (trees) to be trained. 
+Depth 
+6 
+Depth of the tree, controls the complexity of the model. 
+Learning Rate 
+0.1 
+Step size at each iteration while moving toward a minimum of the 
+loss function. 
+Loss Function 
+MultiClass 
+Loss function for multi-class classification problems. 
+Evaluation Metric 
+Accuracy 
+Metric used to evaluate the model’s performance on the validation 
+set. 
+Verbose 
+False 
+Controls the verbosity of the training process. 
+Random Seed 
+42 
+Seed for random number generator to ensure reproducibility of 
+results. 
+Cross-Validation 
+KFold(n_splits=10) 
+10-fold cross-validation to evaluate the model performance on 
+different splits of the dataset. 
+Shuffle 
+True 
+Shuffling the dataset before splitting into folds for cross-validation. 
+Train-Test Split 
+Strategy 
+KFold 
+Using KFold strategy to split data into training and testing sets 
+during each fold of cross-validation. 
+ 
+MLP:  
+The result from multi-layer perceptron model shows that an accuracy of 99% can be obtained with a standard deviation 
+of only 0.003 which shows a great performance of model on classification of three class from useful life level of 
+battery. The cross validation result can be seen in table 5. 
+ 
+Table 5. MLP model results 
+Fold 
+Accuracy 
+Fold 1 
+0.9960 
+Fold 2 
+0.9907 
+Fold 3 
+0.9854 
+Fold 4 
+0.9914 
+Fold 5 
+0.9934 
+Fold 6 
+0.9927 
+Fold 7 
+0.9861 
+Fold 8 
+0.9914 
+Fold 9 
+0.9914 
+Fold 10 
+0.9920 
+Mean Accuracy 
+0.9910 
+Standard Deviation 
+0.0030 
+ 
+ 
+Fig 7. MLP model training and loss history plot 
+The plot in Figure 7 shows the training and validation performance metrics for a Multi-Layer Perceptron (MLP) model 
+over 50 epochs. The Accuracy History plot, shown on the left, shows the accuracy of both training (blue line) and 
+validation (orange line). The plot shows that during the first few epochs, the training accuracy rapidly surpasses 0.98 
+and stays steady at roughly 0.99 for the duration of the training. In a similar vein, the validation accuracy likewise 
+peaks early and maintains a steady range between 0.98 and 0.99, slightly varying but generally following the training 
+accuracy. The model is learning efficiently without experiencing severe overfitting based on the close tracking 
+between training and validation accuracy. The Loss History plot, which is located on the right, displays the 
+development of the training loss (blue line) and validation loss (orange line). The initial few epochs see a dramatic 
+decrease in both losses, despite their relatively high starting points, suggesting that the model is rapidly optimizing. 
+Following this sharp drop, the training and validation losses stabilize at extremely low levels, and for the remaining 
+epochs, they oscillate around these low points. The observation of a well-trained model with strong generalization 
+ability is further supported by the consistent and low values of the training and validation losses. 
+ 
+Generally speaking, these figures show that the MLP model is operating effectively, obtaining high accuracy and low 
+loss on the training and validation datasets, implying minimal overfitting and efficient learning. 
+ 
+ 
+ 
+Fig 8. Multi Layer Perceptron confusion matrix plot 
+The confusion matrix plot seen in figure 8 for the catboost model is shown in the figure, in which we can find that the 
+‘999’ values out of a total of 1002 are classified as class '0.' Similarly, 1000 out of 1004 are classified as class '1', and 
+finally, out of 1007 instances, a total of 981 features set on testing are classified as class ‘2’. The various 
+hyperparameters used in the MLP model can be seen in Table 6. 
+ 
+Table 6. Multi-Layer Perceptron model hyperparameters 
+Hyperparameter 
+Value 
+Description 
+Input Layer 
+input_dim=X_train.shape[1] 
+Number of input features (based on the number of 
+columns in X_train). 
+Layer 1 
+Dense(128, activation='relu') 
+First hidden layer with 128 neurons and ReLU 
+activation function. 
+Layer 2 
+Dense(64, activation='relu') 
+Second hidden layer with 64 neurons and ReLU 
+activation function. 
+Layer 3 
+Dense(32, activation='relu') 
+Third hidden layer with 32 neurons and ReLU 
+activation function. 
+Output Layer 
+Dense(3, activation='softmax') 
+Output layer with 3 neurons (one for each class: high, 
+mid, low) and softmax activation function. 
+Optimizer 
+adam 
+Optimization algorithm used for training. 
+Loss Function 
+sparse_categorical_crossentropy 
+Loss function used for multi-class classification with 
+integer labels. 
+Metrics 
+accuracy 
+Metric used to evaluate the model during training and 
+testing. 
+Epochs 
+50 
+Number of times the entire dataset is passed through 
+the network during training. 
+Batch Size 
+32 
+Number of samples processed before the model is 
+updated during training. 
+Validation Split 
+0.2 
+Proportion of the training data set aside for validation 
+during training (20%). 
+Random 
+State 
+(Train/Test Split) 
+42 
+Seed used for random splitting of the data into 
+training and testing sets, ensuring reproducibility. 
+ 
+GRU model results 
+The GRU model gave a training Accuracy of 98% and testing accuracy of 98.67% which shows great performance of 
+model for classification. 
+ 
+Fig 9. Confusion matrix plot for GRU model 
+The confusion matrix plot can be seen in figure 9,  for catboost model is shown in the figure, in which we can find 
+that the ‘1001’ test feature set out of a total of 1002, are classified as class ‘0’ similarly, 1004 out of 1004 are classified 
+as class ‘1’ showing incredible improvement and finally, out of 1007 instances a total of ‘968’ features set on testing 
+are classified as class ‘2’. 
+ 
+ 
+Fig. 10. GRU history plot 
+The GRU (Gated Recurrent Unit) model's training and validation performance across 50 epochs is displayed in the 
+history plots in figure 10. The accuracy plot on the left shows that the model quickly learns to produce accurate 
+predictions. Both the training and validation accuracies start high and improve quickly, reaching about 0.98 during 
+the first few epochs. The training and validation accuracy closely resemble each other, indicating strong generalization 
+to new data. Both training and validation losses begin higher in the loss plot on the right, but they drop off quickly in 
+the first few epochs before stabilizing at a low value below 0.05. The training and validation loss curves' near 
+alignment suggests that the model is not overfitting, as evidenced by its consistent performance on both sets.  
+ 
+With the analysis of the plot we can find that``, these plots show how the GRU model is successfully learning from 
+the data, attaining high accuracy and low loss without noticeably overfitting, which makes it a good fit for the task at 
+hand. 
+ 
+ 
+Cross validation result 
+ 
+ 
+Table 7. GRU Model cross validation result 
+Fold 
+Test Accuracy 
+Fold 1 
+0.9934 
+Fold 2 
+0.9927 
+Fold 3 
+0.9920 
+Fold 4 
+0.9940 
+Fold 5 
+0.9934 
+Fold 6 
+0.9947 
+Fold 7 
+0.9934 
+Fold 8 
+0.9927 
+Fold 9 
+0.9914 
+Fold 10 
+0.9854 
+Mean Test Accuracy 
+0.9923 
+Standard Deviation 
+0.0025 
+The GRU model too showed a great result in cross-validation, as seen in Table 7, with 99% accuracy on the testing 
+set along with 0.002 as the standard deviation value. This metric shows how well the GRU algorithm would be 
+effective in classifying different states of the recharging of batteries. The model hyperparameters are given in Table 
+8. 
+Model hyperparameters: 
+Table 8. GRU model hyperparameters and descriptions 
+Hyperparameter 
+Value 
+Description 
+GRU Units (Layer 1) 
+64 
+Number of units (neurons) in the first GRU layer, 
+used for processing sequences and learning temporal 
+patterns. 
+GRU Units (Layer 2) 
+32 
+Number of units (neurons) in the second GRU layer, 
+used for further processing after the first layer. 
+Dropout Rate (Layer 
+1) 
+0.2 
+Fraction of input units to drop during training in the 
+first GRU layer to prevent overfitting. 
+Dropout Rate (Layer 
+2) 
+0.2 
+Fraction of input units to drop during training in the 
+second GRU layer to prevent overfitting. 
+Dense Units (Layer 3) 
+16 
+Number of units (neurons) in the first dense (fully 
+connected) layer, used for further processing before 
+classification. 
+Output Units (Layer 4) 
+Number of classes (3) 
+Number of units in the output layer, corresponding to 
+the number of classes for classification (e.g., 3 classes 
+for high, mid, low). 
+Activation Function 
+(Output Layer) 
+softmax 
+Activation function used in the output layer to provide 
+class probabilities. 
+Loss Function 
+categorical_crossentropy 
+Loss function used for multi-class classification 
+problems. 
+Optimizer 
+adam 
+Optimizer used for updating model weights based on 
+the loss function during training. 
+Metrics 
+accuracy 
+Metric used to evaluate the performance of the model 
+during training and testing. 
+Epochs 
+50 
+Number of complete passes through the training 
+dataset. 
+Batch Size 
+32 
+Number of samples processed before the model's 
+internal parameters are updated. 
+K-Folds 
+10 
+Number of folds used in cross-validation to assess the 
+model's generalization ability. 
+Random Seed 
+42 
+Seed for random number generator to ensure 
+reproducibility of cross-validation splits. 
+Input Shape 
+(Number of features, 1) 
+Shape of the input data, with the last dimension 
+representing the feature sequence for GRU layers. 
+Reshaping 
+X = X.reshape(X.shape[0], 
+X.shape[1], 1) 
+Reshaping the input data to match the expected input 
+shape for GRU layers. 
+Label Encoding 
+to_categorical 
+Method used to one-hot encode the categorical labels 
+for multi-class classification. 
+ 
+ 
+Hardware prototype development: 
+ 
+Fig 11. Actuation system 
+ 
+Fig 12. Simulation circuit 
+The circuit diagram can be seen on figure 11 for connection of Esp32 with realy along with their connections, and 
+simulation circuit connetion for ESP-32 and relay module is shown in figure 12, this simulation allows effective 
+analysis of feasibility of developing hardware prototype. 
+ The IoT system offered a great advantage at various levels, with help of the pyserial we could succesfully insert data 
+to the system and thus, it helped the model to adjust performance. For this we created a tkinter application which 
+allowed the features to be inputted to rest if the relay could be triggered for charging of the system. This enahnced the 
+automation process in the system. 
+ 
+Fig 13. Testing data feeding console 
+Figure 13. shows the battery related parameters input GUI system that is integrated to the backend pyserial system to 
+fed these data to model to make prediction and send command to microcontroller to actuate the realy system. The 
+procedure works as when the AI model prediction is low then, the relay triggers to recharge of system. As, the model 
+isn’t directly supported by the system we through the system backend allowed the system to be inputted with the 
+tesging data to actuate relay and to showcase how the model could operate in such system to charge whenver the 
+system needs to be recharged, with this a kind of simulation approach we demonstrate here how the machine learning 
+based automated charging systems can be utilised to predict RUL levels, and recharge the system automatically, this 
+is the main aim behind the system development. The final comparison between model results can be seen on table 9. 
+Table 9. Comparisons of Models result 
+Model 
+Training Accuracy 
+Testing Accuracy 
+MLP 
+0.9911 
+0.9890 
+GRU 
+0.9876 
+0.9867 
+CatBoost 
+1.0000 
+ 
+0.9987 
+ 
+  
+Blynk IoT monitoring and automation 
+ 
+Fig 14. Monitoring on Blynk platform 
+As we can see in figure 14. A few parameters from the testing set are fed to the Blynk platform from backend API 
+tokens obtained from the Blynk setup system. This allows to monitor the parameters used in the test set for model 
+learning as well as predictions, and finally, the relay can be automated to be on or off as per the case of a need for 
+battery recharging; this is how the system extends, as users can get notified too when the charging is needed. By 
+utilizing this system, users can remotely monitor parameters, get notifications when charging is needed, and finally 
+automate the charging process, aiming at an innovative solution for charging the batteries. 
+Limitations of work: 
+The work has several limitations, like the system misadjustment and alignment to the charging voltage level, as Esp-
+32 is sensitive to the high voltages and this might cause failures in charging. Our system also couldn’t show real-life 
+implementation currently, as for this the parameters shall be recreated with the real laboratory-like setup as discussed 
+in the methodology section. The IoT monitoring couldn’t be done as proposed initially as the charging parameters 
+real-time extraction and acquisition required the use of adaptive sensors and equipment. Another impacting drawback 
+is memory constraints on Esp32, like microcontrollers that can't handle the use of AI models and large data fed from 
+the backend system. Overall, the system shows an example configuration of how artificial intelligence can be utilized 
+for the purpose of developing RUL automated charging systems. The utilized various hardware components and their 
+usage, as well as operating voltage, is given in Table 10. 
+ 
+ 
+ 
+Table 10. System components and usage 
+System  
+Operating voltage 
+Support 
+Esp-32 
+3.3v 
+Can be useful due to presence of 
+voltage regulator that helps to 
+adapt suitable voltage levels 
+Relay 
+0-220v 
+In case of requirements of higher 
+voltage usage the relay system is 
+highly powerful for actuation and 
+switching operation.  
+ 
+ 
+Future applications 
+The developed Python model can have the following applications in modern society: 
+a)  Potential Applications in real-time appliances 
+For power management and faulty system analysis we can create much systems that can allow us to manage batteries 
+and overlook on the outcomes of the remaining useful life, automate them to be intelligent enough for self fault 
+handling and managing the issues related to power management. This allows systems to not only rely on software but 
+also to make physical connection and large power-based damages protections. 
+b) Optimization of Vehicle systems: 
+The created model can be used to improve the electric vehicle's performance. Manufacturers can anticipate projected 
+power management by automating the recharging systems in power stations that makes more intelligent and automated 
+charging system useful for EV systems [13-25]. This makes it possible to improve design iteratively and improve 
+overall performance and battery efficiency. 
+c) Energy saving mechanism 
+The system being able to adapt the change of battery RUL use of AI based automation can help to allow power 
+management fault analysis and also could handle various hazard related to power consumption and over use. 
+d) Decision Support for Manufacturers: 
+Manufacturers can utilize the model for decision support during the development phase. By inputting various advanced 
+microcontrollers and semiconductors, they can assess the potential charging outcomes, facilitating informed decisions 
+on component selection, vehicle dimensions, and other critical aspects of fuel cell vehicle design. 
+e) Evaluating Real-world Scenarios: 
+The resilience of the model enables the assessment of real-world scenarios in addition to real-time data. Manufacturers 
+and researchers can acquire estimates that inform judgments about the performance of fuel cell vehicles in real-world 
+scenarios by entering existing or projected vehicle characteristics [15]. 
+Future works 
+In the future, we aim to deploy the model on a Raspberry Pi system and enhance it with a real-life data extraction-
+based prototype for developing the system that is directly fed to the data acquisition from the battery along with a 
+recharging system for power management. The IoT-based automation can be enhanced by creating its own database 
+and server for connecting to the hardware system and managing remotely for power-related tasks. The system can be 
+developed with powerful microcontrollers and actuators that can have real-time implementation in charging systems 
+and power management. The integration technique to IoT can be integrated in real-time and deployed in real-time 
+systems automating the battery charging process. Overall, the system can be a great approach for energy management 
+and saving in the future. 
+  
+Conclusion 
+In light of this, power management system-based on AI offer hope for sustainable advancement in the field of rapidly 
+advancing technology. The application of machine learning techniques facilitates the development of predictor 
+procedures for determining the various parameters involved in the design and research of these charging systems for 
+vehicles and different other practical life applications. The machine learning phenomenon used in this case is a method 
+for assembling an idea as a novel approach for determining predictions connected to the development of energy 
+management systems for vehicles using artificial intelligence applications. 
+In conclusion, the developed model shows great promise for real-world applications in the design, optimization, and 
+decision-making processes related to real-time power management and fault handling, in addition to its exceptional 
+accuracy in predicting RUL data. Because of its adaptability, academics and different power sector and industry 
+stakeholders can both benefit from it as a useful tool. 
+Declaration of conflict of Interest 
+Authors declare that there are no known conflicts of interest. 
+ 
+Declaration of LLM use 
+The authors would like to declare that they utilized LLM tools for minimizing grammar errors and writing. 
+ 
+Data availability statement 
+The data is openly available on kaggle platform.  
+ 
+References 
+[1] Ng, M.-F., Zhao, J., Yan, Q., Conduit, G., Seh, Z. (2020). Predicting the state of charge and health of batteries 
+using data-driven machine learning. Nature Machine Intelligence, 2, 10.1038/s42256-020-0156-7. 
+[2] Shan, C., Chin, C.S., Mohan, V., Zhang, C. (2024). Review of Various Machine Learning Approaches for 
+Predicting 
+Parameters 
+of 
+Lithium-Ion 
+Batteries 
+in 
+Electric 
+Vehicles. 
+Batteries, 
+10, 
+181. 
+https://doi.org/10.3390/batteries10060181 
+[3] Narayanan, S. S. S., Thangavel, S. (2022). Machine learning-based model development for battery state of 
+charge–open circuit voltage relationship using regression techniques. Journal of Energy Storage, 49, 104098. 
+https://doi.org/10.1016/j.est.2022.104098 
+[4] Jayakumar, T., Gowda, N. M., Sujatha, R., Bhukya, S. N., Padmapriya, G., Radhika, S., Mohanavel, V., 
+Sudhakar, M., Sathyamurthy, R. (2022). Machine Learning approach for Prediction of residual energy in 
+batteries. Energy Reports, 8, 756–764. https://doi.org/10.1016/j.egyr.2022.10.027 
+[5] Oyucu, S., Doğan, F., Aksöz, A., Biçer, E. (2024). Comparative Analysis of Commonly Used Machine 
+Learning Approaches for Li-Ion Battery Performance Prediction and Management in Electric Vehicles. 
+Applied Sciences, 14, 2306. https://doi.org/10.3390/app14062306 
+[6] Qaisar, S. M., Alboody, A., Aldossary, S., Alhamdan, A., Moahammad, N., Almaktoom, A. T. (2023). 
+Machine Learning Assistive State of Charge Estimation of Li-Ion Battery. 2023 IEEE 13th International 
+Conference 
+on 
+Electronics 
+and 
+Information 
+Technologies 
+(ELIT), 
+157-161. 
+https://doi.org/10.1109/ELIT61488.2023.10310833 
+[7] Dineva, A. (2021). Advanced Machine Learning Approaches for State-of-Charge Prediction of Li-ion 
+Batteries under Multisine Excitation. 2021 17th Conference on Electrical Machines, Drives and Power 
+Systems (ELMA), 1-5. https://doi.org/10.1109/ELMA52514.2021.9502962 
+[8] Su, L., Zhang, S., McGaughey, A. J. H., Reeja-Jayan, B., Manthiram, A. (2023). Battery Charge Curve 
+Prediction via Feature Extraction and Supervised Machine Learning. Advanced Science, 10(26), e2301737. 
+https://doi.org/10.1002/advs.202301737 
+[9] Thelen, A., Huan, X., Paulson, N. et al. (2024). Probabilistic machine learning for battery health diagnostics 
+and 
+prognostics—review 
+and 
+perspectives. 
+npj 
+Materials 
+Sustainability, 
+2, 
+14. 
+https://doi.org/10.1038/s44296-024-00011-1 
+[10] Harippriya, S., et al. (2022). Journal of Physics: Conference Series, 2325, 012004. 
+[11] Kawahara, T., Sato, K., Sato, Y. (2023). Battery Voltage Prediction Technology Using Machine Learning 
+Model with High Extrapolation Accuracy. International Journal of Energy Research, 2023, 1–17. 
+https://doi.org/10.1155/2023/5513446 
+[12] Sapra, H., Wagner, M., Kokjohn, S., Desorcy, L., Upadhya, S., Kweon, C.-B., Venkataraman, S., Shumaker, 
+J., Elfimova, O. (2023). Estimating Battery State-of-Charge using Machine Learning and Physics-Based 
+Models. https://doi.org/10.4271/2023-01-0522 
+[13] Barreras, F., et al. (2012). Design and development of a multipurpose utility AWD electric vehicle with a 
+hybrid powertrain based on PEM fuel cells and batteries. International Journal of Hydrogen Energy, 37(20), 
+15367-15379. https://doi.org/10.1016/j.ijhydene.2012.06.091 
+[14] Fragiacomo, P., Genovese, M., Piraino, F., Corigliano, O., De Lorenzo, G. (2022). Hydrogen-Fuel Cell 
+Hybrid Powertrain: Conceptual Layouts and Current Applications. Machines, 10(12), 1121. 
+https://doi.org/10.3390/machines10121121 
+[15] Fernández, R. Á., Cilleruelo, F. B., Martínez, I. V. (2016). A new approach to battery powered electric 
+vehicles: A hydrogen fuel-cell-based range extender system. International Journal of Hydrogen Energy, 
+41(8), 4808-4819. https://doi.org/10.1016/j.ijhydene.2016.01.035 
+[16] Moore, T. C., Lovins, A. B. (1995). Vehicle Design Strategies to Meet and Exceed PNGV Goals. SAE 
+Technical Paper Series. https://doi.org/10.4271/951906 
+[17] Lewis, G. M., et al. (2019). Green Principles for Vehicle Lightweighting. Environmental Science & 
+Technology, 53(8), 4063-4077. https://doi.org/10.1021/acs.est.8b05897 
+[18] İnci, M., Büyük, M., Demir, M. H., İlbey, G. (2021). A review and research on fuel cell electric vehicles: 
+Topologies, power electronic converters, energy management methods, technical challenges, marketing and 
+future 
+aspects. 
+Renewable 
+and 
+Sustainable 
+Energy 
+Reviews, 
+137, 
+110648. 
+https://doi.org/10.1016/j.rser.2020.110648 
+[19] Tanç, B., Arat, H. T., Baltacıoğlu, E., Aydın, K. (2019). Overview of the next quarter century vision of 
+hydrogen fuel cell electric vehicles. International Journal of Hydrogen Energy, 44(20), 10120-10128. 
+https://doi.org/10.1016/j.ijhydene.2018.10.112 
+[20] U.S. Department of Energy, “Alternative Fuels Data Center: Fuel Cell Electric Vehicles,” Energy.gov, 2019. 
+https://afdc.energy.gov/vehicles/fuel_cell.html 
+[21] Hydrogen 
+Mobility 
+Europe, 
+“FCEVs 
+| 
+Hydrogen 
+Mobility 
+Europe,” 
+Nov. 
+19, 
+2015. 
+https://h2me.eu/about/fcevs/ 
+[22] Leach, F., Kalghatgi, G., Stone, R., Miles, P. (2020). The scope for improving the efficiency and 
+environmental impact of internal combustion engines. Transportation Engineering, 1(1), 100005. 
+https://doi.org/10.1016/j.treng.2020.100005 
+[23] Chen, Y., et al. (2012). Manganese oxide-based multifunctionalized mesoporous silica nanoparticles for pH-
+responsive MRI, ultrasonography and circumvention of MDR in cancer cells. Biomaterials, 33(29), 7126-
+7137. https://doi.org/10.1016/j.biomaterials.2012.06.059 
+[24] Xu, Y., et al. (2015). Assessment of alternative fuel and powertrain transit bus options using real-world 
+operations data: Life-cycle fuel and emissions 
+modeling. 
+Applied Energy, 154, 143-159. 
+https://doi.org/10.1016/j.apenergy.2015.04.112 
+[25] Shimizu, K., Otsuka, R., Hara, M., Minamitani, E., Watanabe, S. (2023). Prediction of Born effective charges 
+using neural network to study ion migration under electric fields: applications to crystalline and amorphous 
+Li3PO4. 
+Science 
+and 
+Technology 
+of 
+Advanced 
+Materials 
+Methods, 
+3(1). 
+https://doi.org/10.1080/27660400.2023.2253135 
+[26] Vinuales, 
+I. 
+(2023). 
+Battery 
+Remaining 
+Useful 
+Life 
+(RUL) 
+Dataset. 
+Kaggle. 
+https://www.kaggle.com/datasets/ignaciovinuales/battery-remaining-useful-life-rul 
+ 
+ 

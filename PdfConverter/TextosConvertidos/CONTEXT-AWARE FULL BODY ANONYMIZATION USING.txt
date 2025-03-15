@@ -1,0 +1,614 @@
+CONTEXT-AWARE FULL BODY ANONYMIZATION USING
+TEXT-TO-IMAGE DIFFUSION MODELS
+Pascal Zwick
+FZI Research Center for Information Technology
+76131 Karlsruhe, Germany
+zwick@fzi.de
+Kevin Roesch
+FZI Research Center for Information Technology
+76131 Karlsruhe, Germany
+kevin.roesch@fzi.de
+Marvin Klemp
+Karlsruhe Institute of Technology
+76131 Karlsruhe, Germany
+marvin.klemp@kit.edu
+Oliver Bringmann
+FZI Research Center for Information Technology
+University of Tuebingen
+72074 Tuebingen, Germany
+oliver.bringmann@uni-tuebingen.de
+Reference
+Anonymized
+Figure 1: Images from different scenes anonymized with the method proposed in this paper. [19]
+ABSTRACT
+Anonymization plays a key role in protecting sensible information of individuals in real world
+datasets. Self-driving cars for example need high resolution facial features to track people and their
+viewing direction to predict future behaviour and react accordingly. In order to protect people’s
+privacy whilst keeping important features in the dataset, it is important to replace the full body of a
+person with a highly detailed anonymized one. In contrast to doing face anonymization, full body
+replacement decreases the ability of recognizing people by their hairstyle or clothes. In this paper, we
+propose a workflow for full body person anonymization utilizing Stable Diffusion as a generative
+backend. Text-to-image diffusion models, like Stable Diffusion, OpenAI’s DALL-E or Midjourney,
+have become very popular in recent time, being able to create photorealistic images from a single text
+prompt. We show that our method outperforms state-of-the art anonymization pipelines with respect
+to image quality, resolution, Inception Score (IS) and Frechet Inception Distance (FID). Additionally,
+our method is invariant with respect to the image generator and thus able to be used with the latest
+models available.
+Keywords Anonymization, Image Inpainting, Diffusion Models
+arXiv:2410.08551v2  [cs.CV]  17 Oct 2024
+FADM -Full Body Anonymization using Diffusion Models
+1
+Introduction
+Image based deep learning models require a lot of high quality images for training, be it for classification, movement
+prediction or other problems. In order to not infringe the privacy of individuals, training data needs to be anonymized,
+leading to less data with a reduction in quality. As an example, the detection and viewing direction of pedestrians is
+needed for movement prediction in self driving car applications.
+With the rise of text-to-image models, like Stable Diffusion [26], DALL-E [23] or Midjourney [20], it is now possible
+to generate realistic looking images from text prompts. Although so-called diffusion models are compute intensive
+compared to previous methods, like GANs, there exist a lot of pretrained models with different characteristics and
+output resolution, up to 1024 × 1024 for Stable Diffusion XL [22]. However, resolution is often not the main concern,
+the image quality and realism is sometimes of higher importance, depending on the purpose of the application. Simple
+anonymization methods, like blur or pixelizing, conserve privacy and are enough when it comes to detection tasks [12].
+In contrast, getting the view direction or other keypoints of a pedestrian are lost using these approaches. In order to
+ensure no corruption of the data, we propose to anonymize the full body with a generated, highly detailed, one that
+is dissimilar to the original person whilst still retaining information, like skin color, anatomy, i.e. (see fig. 1). This is
+already done partially in DeepPrivacy2 [11], but with limited image resolution quality and without focus on retaining
+features. Our main contributions are:
+• A novel pipeline that anonymizes people in arbitrary images for the use in neural network training, dataset
+creation and data storage (i.e. on a blackbox for vehicles)
+• Evaluation that shows the impact of image anonymization on model training
+• Use of replaceable pre-trained diffusion models for general anonymization purposes
+This work is structured the following way. We first describe related work in the area of person anonymization and
+diffusion models (section 2). We then start to explain our method in detail in section 3, describing the different building
+blocks in detail. At the end in section 4, we show results of our method mainly compared to DeepPrivacy2 [11], a state
+of the art full body anonymization method. The main test cases are image quality, anonymization guarantee and YOLO
+[25, 13] training behaviour.
+2
+Related Work
+Image anonymization is widely used in practice, mainly preserving the privacy of people, but also for number plates
+and other sensible information. Some classic methods are the blur, pixelization or masking filter, which are easy to
+implement, but also degrade the image quality and corrupt important features [12]. Recently, generative adverserial
+networks (GANs) were used to generate high quality realistic images with the capability to be used for image inpainting
+[14, 23]. Hukkelas et al. [11] propose the use of multiple GANs for full body and face anonymization of people. They
+use pose estimation and continuous surface embeddings [21] to guide the generative network and get impressive results.
+However, their model outputs at 256 × 256 resolution which is enough for smaller images, but fails at the reconstruction
+of details, such as eyes and facial features, needed for tasks like intention recognition. It is shown that low resolution
+results impact the model performance when comparing against the original dataset [12].
+2.1
+Diffusion Models
+Diffusion models (DMs) [9, 27] are an alternative to GANs for image generation. They operate on the basis of reversing
+a Markov chain.
+The procedure starts with defining a scheduler which sets the noise added at each timestep n ∈[0, N] in the chain.
+The original image x0 is then distorted by applying the distortion q(xn+1|xn) defined by the scheduler iteratively.
+This is illustrated in fig. 2. During training, a single chain link is sampled and the model is trained to output the
+noise pθ(xn|xn+1). For image generation, xN, a random normalized distributed image, is used as a starting point.
+To get a deterministic output, a seed can be used for the random number generator to generate consistent xN. For
+inpainting, masking regions to not contain noise is possible, as well as starting at an arbitrary xn to corrupt the image
+less. Originally proposed as an unconditional generation model [9], conditional embeddings can also be added to the
+model, like text. This leads to the recently proposed Stable Diffusion [26, 22] for the possibility of context aware
+generation. The latest model is trained to output 1024 × 1024 images containing stunning detail and facial features.
+Additionally, using ControlNet [36], embeddings can be changed to match certain features, like preserving edges, image
+depth or poses for people. Previously, face anonymization using DMs [16] showed promising results. On the contrary,
+running diffusion models is much slower than GANs, because of the need of iteratively applying the model to solve the
+2
+FADM -Full Body Anonymization using Diffusion Models
+Figure 2: The Markov chain used for DMs. The initial state x0 is corrupted by iteratively adding noise q(xn+1|xn)
+until arriving at the fully noised image xN.
+Input Image
+Object Detection
+Segmentation Mask
+Diffusion Process
+Per Object
+Coverage based
+Merge
+Anonymized Image
+Figure 3: A high level overview of our anonymization pipeline.
+reverse markov chain. To speed up this process, Adversarial Diffusion Distillation [29] is proposed, which reduces the
+execution time to a fraction of the original whilst still achieving high quality results.
+3
+Anonymization Pipeline
+In this section, we explain our anonymization pipeline in detail. We call our method FADM (Full-Body Anonymization
+using Diffusion Models) and mainly focus on full body people anonymization in this paper, but the pipeline proposed
+can also be adapted to different classes, which will be elaborated in the future. We start with a brief overview of the
+whole method and later discuss each building block in detail.
+In fig. 3, a high level overview of our pipeline is given. Object detection and instance segmentation is applied to the
+input image to get the bounding box and per-pixel segmentation mask of each object. For every instance, we dispatch
+a text-to-image diffusion model with a general prompt to inpaint the mask with plausible information. When using
+parallelization, the resulting list of cropped images need to be ordered back to front for compositing, which we do based
+on pixel coverage.
+3.1
+Object Detection and Segmentation
+The first step in our pipeline is to detect the objects to anonymize. This is done by using a pre-trained YOLOv8 [13]
+detector by ultralytics (namely "yolov8_m-seg" trained on COCO) paired with instance segmentation for masking
+objects. The result is a bounding box and instance mask for every object used for the per-object pipeline described in
+the next section.
+3.2
+Diffusion Process
+After retrieving cropped images per object, we inpaint the segmentation mask using a text to image diffusion model.
+For the text prompt, we set "RAW photo, subject, 8k uhd, dslr, soft lighting, high quality, film grain, Fujifilm XT3" as the
+positive prompt and "deformed iris, deformed pupils, semi-realistic, cgi, 3d, render, sketch, cartoon, drawing, anime),
+text, cropped, out of frame, worst quality, low quality, jpeg artifacts, ugly, duplicate, morbid, mutilated, extra fingers,
+3
+FADM -Full Body Anonymization using Diffusion Models
+d = 0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+Figure 4: How the parameter βd influences the anonymization strength of a person instance.
+mutated hands, poorly drawn hands, poorly drawn face, mutation, deformed, blurry, dehydrated, bad anatomy, bad
+proportions, extra limbs, cloned face, disfigured, gross proportions, malformed limbs, missing arms, missing legs, extra
+arms, extra legs, fused fingers, too many fingers, long neck" as the negative one. A pre-trained Stable Diffusion (SD)
+model [26, 32, 22, 33] is used as the generator, which leads to resolutions of 512 × 512, 768 × 768 and 1024 × 1024
+respectively, an increase of up to 16 times the pixels compared to previous methods. SDXL is the most compute
+intensive workload. As a good fit for quality vs. performance, we recommend using Stable Diffusion 2.0 inpainting
+[31] at a resolution of 768.
+In order to guide the diffusion process, we propose a noise value of maximum βd = 0.6. This means, we do not take the
+full N steps, but start at state x⌊βdN⌋of the Markov chain. As a result, the original image is mixed into the noisy image
+by a factor of 1 −βd. Thus, we can say that βd modifies the amount of anonymization of the object. We visualized
+the influence of this parameter in figure fig. 4. A large value changes the image significantly, as most of the initial
+image is noise and has no information about the original person. We also see clearly how lower values of βd lead to less
+anonymization.
+3.3
+Coverage based Merge
+Depending on the implementation of the per-object process, the resulting images are unordered. This means that we
+do not know the back to front order of all objects, but this is of essential importance, as objects in the foreground can
+still contain some parts of background objects and vice versa. When doing everything iteratively, this does not pose a
+problem, as for every anonynmization, the previous one is finished and already merged into the final image.
+In order to improve performance, we use parallel processing for precomputing the cropped images before executing
+the diffusion process. This has the benefit of being able to batch the per object images together in a single call to the
+diffusion model if enough memory is availbale on the gpu. Images generated that way always contain the original
+background pixel data for every object. To reduce overlapping artifacts and get a back to front ordering, we sum up the
+instance segmentation mask values of each object, which effectively gives us the coverage in pixels. We assume that
+objects in the foreground are larger and occupy more space than objects in the background. Then, we sort the results
+upwards based on the coverage values and merge the images together to get the final anonymized result. This method is
+proposed by Hukkelas et al. [11] as Recursive Stitching.
+An alternative to coverage based sorting is using depth estimation [24, 2, 35] and ordering the image crops from back to
+front. Although we have not tested this approach and do not explain more details about it in this paper, we think it is
+interesting to look at in the future. The reason is that coverage based merging assumes objects in the foreground to
+be larger than ones in the background. In general, this is not the case, especially when children are in the image that
+are smaller than adults. Correct per-pixel depth estimation has no such assumptions. In contrast to depth estimation,
+expanding our method to different object classes poses a problem for coverage based merging, as object scales can vary
+drastically then.
+4
+Results
+In this section, we show results of the proposed pipeline. We start with assessing the general image quality, then
+show if anonynmization has an impact when training a YOLOv8 [13] object detector, as well as a Mask2Former
+[4] segmentation model. Last but not least, we explain that our method ensures anonymization by testing against
+re-identification algorithms on the market1501 and LAST datasets. Additionally, we also perform a face only re-
+identification evaluation.
+4
+FADM -Full Body Anonymization using Diffusion Models
+Reference
+DeepPrivacy2 FADM (Ours)
+FADM (Ours)
+Figure 5: Comparison of DeepPrivacy2 and our method on a high resolution stock photo [34].
+Figure 6: Comparison of anonymizing Ellen’s Oscar selfie (middle) with DP2 (left) and our method (right).
+4.1
+Image Quality
+A very important part of anonymization is preserving image quality. We already see some examples in fig. 1, where our
+method is used to anonymize high resolution images from different scenarios. Previous methods, like DeepPrivacy2
+[11], are limited to 256 × 256 output resolution, which is way too low for high resolution images everywhere today. Our
+method can generate high quality images up to 1024 × 1024 resolution, greatly improving sharpness of the anonymized
+image part.
+However, resolution is not everything, the context and overall look of an image, like lighting, shadows and features are
+also very important. fig. 5 compares DeepPrivacy2 (DP2) with our method on an image of a group of people. Looking
+at the orange and green part, we clearly see the improvement in sharpness. Additionally, our method preserves the
+general image feel, in this case a warmer look, correct skin tone and shadows. The image from DP2 looks more out of
+context and not very well integrated into the original image with respect to lighting and compositing. This behaviour is
+seen in many images, like fig. 6, where we anonymize a group of people. Our method creates a much more realistic
+look than DP2. Especially when looking at faces in that image, as well as the clothes, which look more natural for the
+context of that scene (shot at the Oscars).
+Reference
+DeepPrivacy2 FADM (Ours)
+FADM (Ours)
+Figure 7: Comparison of DeepPrivacy2 and our method on a low resolution image from the COCO Dataset [19].
+5
+FADM -Full Body Anonymization using Diffusion Models
+Method
+IS ↑
+FID ↓
+Reference
+27.39
+-
+Blurring
+20.83
+31.87
+Masking
+23.15
+22.99
+Pixelization
+20.39
+36.39
+DeepPrivacy2
+25.01
+6.03
+FADM (Ours)
+27.23
+3.02
+Table 1: Inception Score (IS) and Frechet Inception Distance (FID) of different anonymization methods on a subset of
+the COCO Dataset [19].
+0
+10
+20
+30
+40
+50
+Epochs
+0.45
+0.50
+0.55
+0.60
+0.65
+0.70
+0.75
+0.80
+0.85
+Precision
+YOLOv8 training behaviour
+Original
+DeepPrivacy2
+FADM (Ours)
+0.0
+0.2
+0.4
+0.6
+0.8
+1.0
+Recall
+1.0
+0.8
+0.6
+0.4
+0.2
+Precision
+Precision / Recall Curve
+Original
+DeepPrivacy2
+FADM (Ours)
+Figure 8: Training behaviour of a YOLOv8 models on the left and their corresponding Precision Recall curve on the
+right. Training uses the original dataset (blue), anonymized one with DP2 (orange) and with our method (green).
+When looking at lower resolution images, we still see the same behaviour, like in fig. 7. The composition of DP2 is
+better than in fig. 5, but still lacks detail. For example, the wooden stick is corrupted in the DP2 image, whilst realistic
+looking when using our method. Also, the face of the woman is ignored in DP2, but that may be a problem with
+the detector the algorithm uses. Our method not only anonymizes the person, but also clothes in context. As text is
+problematic for diffusion models (see also fig. 1), the logo on the shirt is anonymized, but mostly contains gibberish
+text. However, this is only a minor problem as it retains the context of a shirt containing a logo.
+To verify our image quality findings, we anonymized a subset of the COCO dataset containing 10k images from different
+situations. The resulting images are then used to calculate the Inception Score (IS) [28] and Frechet Inception Distance
+(FID) [8, 5], shown in table 1. These metrics are commonly used for generative AI models to calculate the quality of
+the output. A higher IS corresponds to better image quality where as a lower FID is better in general. FID is measured
+relative to the original dataset, thus there is no score for the reference. We see that classical methods, like blurring,
+masking and pixelation, achieve the lowest quality possible. DP2 improves the IS and FID drastically compared to the
+previously mentioned algorithms. Our method outperforms previous algorithms by nearly being tied with the reference
+dataset for the IS and halves the FID compared to DP2.
+4.2
+Object Detection
+We already showed that our method significantly improves the image quality compared to previous methods. The next
+question is: "Does it even matter for training AI models?" There are many different problems in the computer vision
+space. We cannot test all of them in this paper. We focus on object detection, as it is an important task and a good
+indicator if anonymization impacts training performance [12].
+As a first experiment we trained a YOLOv8 model multiple times on a subset of the COCO dataset [19] to detect people
+and tested the result on a static validation set of real images. The first training was done with the reference dataset,
+the second one used anonymization by DP2 and the third one used our method. In fig. 8, we plot the precision of the
+model on the validation set for the first 50 epochs. We clearly see that training with DP2 results in a worse precision
+than using the original dataset. In contrast, using our method, the model performance is not degraded compared to the
+original one, showing that anonymization has no impact on people detection in this task.
+6
+FADM -Full Body Anonymization using Diffusion Models
+Anon. method
+IoUPerson ↑
+∆IoUrel
+Person
+IoURider ↑
+∆IoUrel
+Rider
+IoUHuman ↑
+Baseline
+0.836
+0.00%
+0.443
+0.00%
+0.894
+Naive
+BLURRING
+0.898
++7.4%
+0.69
++55.75%
+0.94
+MASKING
+0.006
+-99.2%
+0.070
+-84.2%
+0.018
+PIXELIZATION
+0.247
+-70.45%
+0.142
+-67.94%
+0.263
+Deep learning-based
+DEEPPRIVACY2
+0.624
+-25.35%
+0.587
++32.5%
+0.663
+FADM (ours)
+0.770
+-7.89%
+0.562
++26.86%
+0.776
+Table 2: Impacts of anonymization methods on Mask2Former semantic segmentation
+Method
+Rank-1 ↓
+mAP ↓
+Original
+94.4%
+82.6%
+Blurring
+13.1%
+11.0%
+Masking
+12.7%
+10.4%
+Pixelization
+12.3%
+10.3%
+DeepPrivacy2
+40.8%
+34.9%
+FADM (Ours)
+67.8%
+53.7%
+Table 3: The rank-1 accuracy and mean average precision (mAP) of OSNet on the Market1501 dataset when using
+different anonymization methods.
+This is supported by the precision-recall curve in fig. 8, which shows the performance of the best model trained on the
+three datasets mentioned earlier. A better result is indicated by a curve that fits closer to the top right corner. When
+using DP2, the model underperforms compared to the original dataset, while our method shows a slight improvement
+over the original. There is no clear explanation for this behaviour. However, it is possible that our algorithm produces
+sharper edges and generally clearer images than the original dataset. For instance, slight blur, i.e. depth of field, is
+mostly eliminated, resulting in a sharper and clearer image of the generated person. Although this would result in the
+model training only on sharp images, more blurry ones are still anonymized to be blurred.
+Secondly, we show the impact of all anonymization methods already mentioned in table 1. For this, we trained a
+Mask2Former [4] on the cityscapes dataset [6] as a baseline. To evaluate the impact of the anonymization methods on
+the model training, we anonymized the training split and evaluated the model on the raw images of the validation split.
+For the training setup and evaluation metrics, we follow the setup used in [16]. The results are shown in section 4.2.
+We see that our method outperforms DP2, masking and pixelization regarding the IoU of people whilst falling slightly
+behind in the "rider" class. Interestingly, blurring the mask outperforms all other methods and improves the model
+performance compared to the baseline.
+4.3
+Re-Identification
+So far, we have only shown that our method produces realistic images and does not sacrifice model performance when
+it comes to object detection. However, this paper is designated to anonynmization and we have to validate that the
+proposed method actually anonymizes people. To measure anonymization, we opted to use a person re-identification
+model as a metric. Keep in mind, this is in no means a proof that there exists no algorithm that can defeat our
+anonymization method.
+As a re-identification method, we use OSNet [39, 40] via the torchreid [38] library and anonymize the Market1501 [37]
+dataset. OSNet is trained on the dataset, which contains 1501 identities in 32k images. The task of OSNet is then to
+match a given image with a target identity from the dataset. Our test used the anonymization method to anonymize the
+person before OSNet is applied and a method succeeds when the model outputs the wrong identity.
+The result is described in table 3, where the Rank-1 accuracy and mean average precision (mAP) is shown. Rank-1
+accuracy describes the number of identities correctly matched by the algorithm. Mean average precision is based on
+multiple metrics and mainly calculated over recall values. We see that OSNet does a great job at identifying people
+in the original dataset. DP2 anonymizes the images and yields a much lower accuracy for the algorithm, showing its
+anonymization capabilities. In contrast to the original paper [11], we get worse results in this test with the code provided
+by the authors. They original reported a Rank-1 accuracy of 44.7% and mAP of 8.5%. Our method is not as good
+7
+FADM -Full Body Anonymization using Diffusion Models
+Figure 9: An example from the LaST dataset [30] anonymized using our method and tested by the OSNet re-identification
+algorithm. It visualizes the anonymized query image on the left and the positive (green) and negative (red) matches
+from the gallery on the right.
+Method
+Rank-1 ↓
+Rank-10 ↓
+mAP ↓
+Original
+69.6%
+86.0%
+25.6%
+Blurring
+21.6%
+41.8%
+5.9%
+Masking
+4.5%
+13.2%
+1.4%
+Pixelation
+44.7%
+67.2%
+13.3%
+DeepPrivacy2
+3.4%
+8.8%
+1.1%
+FADM (Ours)
+41.6%
+65.4%
+12.7%
+Table 4: The rank-1 accuracy and mean average precision (mAP) of OSNet on the LaST dataset when using different
+anonymization methods.
+as DP2 when it comes to anonymization in this test, but still reduces the overall score of the OSNet re-identification
+method significantly. In general, we can say that our method trades anonymization for a large increase in image quality.
+Of course, destroying an image using masking, bluring or pixelization would yield a high anonymization at the cost of
+image quality.
+Please note that our method is designed for high resolution image inpainting. The dataset used for testing, Market1501,
+has a resolution of 128 × 256, which is very low to start with.
+Additionally, OSNet is trained with only 1501 identities, so there is the possibility that many generated identities map
+to a close latent space representation. That’s why we also tested our method on the LaST dataset [30], which contains
+over 10000 identities in around 228000 images. The results are shown in table 4.
+fig. 9 shows an example of the rank 10 retrieval. The query image is anonymized using our method and the positive
+and negative matches are shown on the right. This sample shows that re-identification is very dependent on the color
+distribution on the image. As soon as the color of the clothes changes, as in the image anonymized by DeepPrivacy2
+and FADM, the main clothing in the images retrieved from the gallery match the query images. Even the slighter color
+change in the FADM image is enough to fool the re-identification algorithm.
+8
+FADM -Full Body Anonymization using Diffusion Models
+Method
+Rank-1 accuracy
+Reference
+89.41%
+Blur
+12.26%
+Masking
+0.00%
+Pixel
+4.18%
+Ours
+2.78%
+Table 5: The rank-1 accuracy of the face re-identification algorithm on the faces in the wild dataset anonymized with
+different algorithms.
+Reference
+Anonymized
+Figure 10: Some example images from the CelebAMask-HQ dataset [18] anonymized using our method and tested by
+the face re-identification algorithm.
+We also tested face re-identification on higher resolution images using the face_recognition library [7], which uses the
+dlib face recognition pipeline [15] achieving 99.38% accuracy on the labeled faces in the wild dataset (LFW) [10, 17].
+fig. 10 shows a few images used for testing while Tab. 5 shows the performance of the face recognition model when
+used on both datasets.
+It is clear that our method sucessfully anoynmizes identities in the dataset and deceives the re-identification algorithm
+with a much lower accuracy than with the original dataset.
+4.4
+Limitations
+In this section, we want to show some limitations of our approach. Our method highly depends on the generation quality
+of the diffusion model. Although current models produce photorealistic, high quality images, some cases exist where
+the output is corrupted.
+We show some problems in fig. 11. The face looks slightly deformed and the right eye is not very well reconstructed.
+We think this happens due to the model being trained on less data for certain angles of human faces as well as the
+general problem of generating faces at lower resolutions. In this example, the model had to generate a complex pose
+of a whole person. The second example shows a problem reconstructing hands, which is very common when using
+the latest diffusion models and may be improved in future versions. The third one shows that faces are sometimes
+completely removed, as the one of the woman in the background. Additionally, the hand gets blurred and does not look
+like a hand anymore.
+These scenarios do not occur as often as when generating an image from scratch, i.e. from full noise, but can occasionally
+occur. However, our method is still valid as the generator can be replaced by any other generative model. We think
+with research advances in the next years, the hand problem of generative models can be reduced or eliminated and then
+directly used with our approach.
+There is also no support for video streams yet. Though the pipeline is capable of working on image sequences, Stable
+Diffusion is not capable of generating temporally consistent image sequences out of the box. At the end of doing
+the research for this paper, Stable Video Diffusion [3] was proposed, showing significant improvements in temporal
+stability that should be easily integratable into our pipeline.
+9
+FADM -Full Body Anonymization using Diffusion Models
+Reference
+Anonymized
+Figure 11: Failure cases where the diffusion model generated deformed hands and faces when applied to images from
+the CelebAMask-HQ [18].
+To reproduce our results, we refer to the publicly available source code of our project [1].
+5
+Conclusion
+In this work, we proposed a novel pipeline for full-body people anonymization. Our method achieves higher image
+quality than previous methods regarding resolution, realism and image composition. We provided justification that
+the proposed method anonymizes people by using re-identification algorithms and deceiving them. Using an object
+detector trained on our anonymized dataset, we showed that the resulting model is on par and sometimes outperforms a
+model trained on the original dataset. This is in contrast to the results of previous method [12], where image quality and
+resolution are worse. The proposed pipeline can be used with any text-to-image model and thus can be updated with the
+latest models in the future. This is important as new methods, like Adverserial Diffusion Destillation [29], improve
+the speed and quality of diffusion models and thus our pipeline. For future research, combining a prompt sampler
+with the diffusion model seems interesting to improve variety and improve anonymization strength. Furthermore, the
+proposed method is only executed on single images, making it unsuitable for videos as the diffusion model relies heavily
+on the initial noise. Integrating a temporal step combined with Stable Video Diffusion [3] can lead to usable video
+anonymization.
+Honorary Mentions
+This paper emerged during the research projects ANYMOS - Competence Cluster Anonymization for networked mobility
+systems and just better DATA (jbDATA) supported by the German Federal Ministry for Economic Affairs and Climate
+Action of Germany (BMWK) and was founded by the German Federal Ministry of Education and Research (BMBF) as
+part of NextGenerationEU of the European Union.
+References
+[1] Source code of the project. The source code of the project.
+10
+FADM -Full Body Anonymization using Diffusion Models
+[2] Shariq Farooq Bhat, Reiner Birkl, Diana Wofk, Peter Wonka, and Matthias Müller. Zoedepth: Combining relative
+and metric depth (official implementation). In IEEE Transactions on Pattern Analysis and Machine Intelligence.
+IEEE, 2022.
+[3] Andreas Blattmann, Tim Dockhorn, Sumith Kulal, Daniel Mendelevitch, Maciej Kilian, Dominik Lorenz, Yam
+Levi, Zion English, Vikram Voleti, Adam Letts, et al. Stable video diffusion: Scaling latent video diffusion models
+to large datasets. arXiv preprint arXiv:2311.15127, 2023.
+[4] Bowen Cheng, Ishan Misra, Alexander G. Schwing, Alexander Kirillov, and Rohit Girdhar. Masked-attention
+mask transformer for universal image segmentation. 2022.
+[5] Min Jin Chong and David Forsyth. Effectively unbiased fid and inception score and where to find them. In
+Proceedings of the IEEE/CVF conference on computer vision and pattern recognition, pages 6070–6079, 2020.
+[6] Marius Cordts, Mohamed Omran, Sebastian Ramos, Timo Rehfeld, Markus Enzweiler, Rodrigo Benenson, Uwe
+Franke, Stefan Roth, and Bernt Schiele. The cityscapes dataset for semantic urban scene understanding. In
+Proceedings of the IEEE conference on computer vision and pattern recognition, 2016.
+[7] Adam Geitgey. The world’s simplest facial recognition api for python and the command line, 2016. Accessed:
+Dec 19, 2023.
+[8] Martin Heusel, Hubert Ramsauer, Thomas Unterthiner, Bernhard Nessler, and Sepp Hochreiter. Gans trained by
+a two time-scale update rule converge to a local nash equilibrium. Advances in neural information processing
+systems, 30, 2017.
+[9] Jonathan Ho, Ajay Jain, and Pieter Abbeel. Denoising diffusion probabilistic models. Advances in neural
+information processing systems, 33:6840–6851, 2020.
+[10] Gary B. Huang, Manu Ramesh, Tamara Berg, and Erik Learned-Miller. Labeled faces in the wild: A database for
+studying face recognition in unconstrained environments. Technical Report 07-49, University of Massachusetts,
+Amherst, October 2007.
+[11] Håkon Hukkelås and Frank Lindseth. Deepprivacy2: Towards realistic full-body anonymization. In Proceedings
+of the IEEE/CVF Winter Conference on Applications of Computer Vision, pages 1329–1338, 2023.
+[12] Håkon Hukkelås and Frank Lindseth. Does image anonymization impact computer vision training? In Proceedings
+of the IEEE/CVF Conference on Computer Vision and Pattern Recognition, pages 140–150, 2023.
+[13] Glenn Jocher, Ayush Chaurasia, and Jing Qiu. Ultralytics yolov8, 2023.
+[14] Tero Karras, Samuli Laine, Miika Aittala, Janne Hellsten, Jaakko Lehtinen, and Timo Aila. Analyzing and
+improving the image quality of stylegan. In Proceedings of the IEEE/CVF conference on computer vision and
+pattern recognition, pages 8110–8119, 2020.
+[15] Davis E. King. Dlib-ml: A machine learning toolkit, 2009. Accessed: Dec 19, 2023.
+[16] Marvin Klemp, Kevin Rösch, Royden Wagner, Jannik Quehl, and Martin Lauer. Ldfa: Latent diffusion face
+anonymization for self-driving applications. In Proceedings of the IEEE/CVF Conference on Computer Vision
+and Pattern Recognition, pages 3198–3204, 2023.
+[17] Gary B. Huang Erik Learned-Miller. Labeled faces in the wild: Updates and new reporting procedures. Technical
+Report UM-CS-2014-003, University of Massachusetts, Amherst, May 2014.
+[18] Cheng-Han Lee, Ziwei Liu, Lingyun Wu, and Ping Luo. Maskgan: Towards diverse and interactive facial image
+manipulation. In IEEE Conference on Computer Vision and Pattern Recognition (CVPR), 2020.
+[19] Tsung-Yi Lin, Michael Maire, Serge Belongie, James Hays, Pietro Perona, Deva Ramanan, Piotr Dollár, and
+C Lawrence Zitnick. Microsoft coco: Common objects in context. In Computer Vision–ECCV 2014: 13th
+European Conference, Zurich, Switzerland, September 6-12, 2014, Proceedings, Part V 13, pages 740–755.
+Springer, 2014.
+[20] Midjourney. Midjourney, 2023. Accessed 18/12/2023.
+[21] Natalia Neverova, David Novotny, Marc Szafraniec, Vasil Khalidov, Patrick Labatut, and Andrea Vedaldi.
+Continuous surface embeddings. Advances in Neural Information Processing Systems, 33:17258–17270, 2020.
+[22] Dustin Podell, Zion English, Kyle Lacey, Andreas Blattmann, Tim Dockhorn, Jonas Müller, Joe Penna, and Robin
+Rombach. Sdxl: Improving latent diffusion models for high-resolution image synthesis, 2023.
+[23] Aditya Ramesh, Mikhail Pavlov, Gabriel Goh, Scott Gray, Chelsea Voss, Alec Radford, Mark Chen, and Ilya
+Sutskever. Zero-shot text-to-image generation. In International Conference on Machine Learning, pages 8821–
+8831. PMLR, 2021.
+11
+FADM -Full Body Anonymization using Diffusion Models
+[24] René Ranftl, Katrin Lasinger, David Hafner, Konrad Schindler, and Vladlen Koltun. Towards robust monocular
+depth estimation: Mixing datasets for zero-shot cross-dataset transfer. In IEEE Transactions on Pattern Analysis
+and Machine Intelligence. IEEE, 2022.
+[25] Joseph Redmon, Santosh Divvala, Ross Girshick, and Ali Farhadi. You only look once: Unified, real-time object
+detection. In Proceedings of the IEEE conference on computer vision and pattern recognition, pages 779–788,
+2016.
+[26] Robin Rombach, Andreas Blattmann, Dominik Lorenz, Patrick Esser, and Björn Ommer. High-resolution image
+synthesis with latent diffusion models. In Proceedings of the IEEE/CVF Conference on Computer Vision and
+Pattern Recognition (CVPR), pages 10684–10695, June 2022.
+[27] Chitwan Saharia, William Chan, Huiwen Chang, Chris Lee, Jonathan Ho, Tim Salimans, David Fleet, and Mo-
+hammad Norouzi. Palette: Image-to-image diffusion models. In ACM SIGGRAPH 2022 Conference Proceedings,
+pages 1–10, 2022.
+[28] Tim Salimans, Ian Goodfellow, Wojciech Zaremba, Vicki Cheung, Alec Radford, and Xi Chen. Improved
+techniques for training gans. In Advances in Neural Information Processing Systems, pages 2234–2242, 2016.
+[29] Axel Sauer, Dominik Lorenz, Andreas Blattmann, and Robin Rombach. Adversarial diffusion distillation. arXiv
+preprint arXiv:2311.17042, 2023.
+[30] Xiujun Shu, Xiao Wang, Xianghao Zang, Shiliang Zhang, Yuanqi Chen, Ge Li, and Qi Tian. Large-scale spatio-
+temporal person re-identification: Algorithms and benchmark. IEEE Transactions on Circuits and Systems for
+Video Technology, 2021.
+[31] StabilityAI. Stable diffusion 2 inpainting, 2023. Accessed on 19 December 2023.
+[32] StabilityAI. Stable diffusion 2.1, 2023. Accessed on 19 December 2023.
+[33] StabilityAI. Stable diffusion xl base 1.0, 2023. Accessed on 19 December 2023.
+[34] Chad Witbooi. Group of people sitting on brown rock mountain. Accessed: Dec 19, 2023.
+[35] Lihe Yang, Bingyi Kang, Zilong Huang, Xiaogang Xu, Jiashi Feng, and Hengshuang Zhao. Depth anything:
+Unleashing the power of large-scale unlabeled data. arXiv:2401.10891, 2024.
+[36] Lvmin Zhang, Anyi Rao, and Maneesh Agrawala. Adding conditional control to text-to-image diffusion models.
+In Proceedings of the IEEE/CVF International Conference on Computer Vision, pages 3836–3847, 2023.
+[37] Liang Zheng, Liyue Shen, Lu Tian, Shengjin Wang, Jingdong Wang, and Qi Tian. Scalable person re-identification:
+A benchmark. In Proceedings of the IEEE international conference on computer vision, pages 1116–1124, 2015.
+[38] Kaiyang Zhou and Tao Xiang. Torchreid: A library for deep learning person re-identification in pytorch. arXiv
+preprint arXiv:1910.10093, 2019.
+[39] Kaiyang Zhou, Yongxin Yang, Andrea Cavallaro, and Tao Xiang. Omni-scale feature learning for person re-
+identification. In ICCV, 2019.
+[40] Kaiyang Zhou, Yongxin Yang, Andrea Cavallaro, and Tao Xiang. Learning generalisable omni-scale representa-
+tions for person re-identification. TPAMI, 2021.
+12

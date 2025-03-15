@@ -1,0 +1,1931 @@
+QHDOPT: A Software for Nonlinear Optimization with Quantum
+Hamiltonian Descent
+Samuel Kushnir1, Jiaqi Leng2,3,4,†,∗, Yuxiang Peng1,3, Lei Fan5,6, and Xiaodi Wu1,3
+1Department of Computer Science, University of Maryland
+2Department of Mathematics, University of Maryland
+3Joint Center for Quantum Information and Computer Science, University of Maryland
+4Department of Mathematics and Simons Institute for the Theory of Computing,
+University of California, Berkeley
+5Department of Engineering Technology, University of Houston
+6Department of Electrical and Computer Engineering, University of Houston
+†jiaqil@terpmail.umd.edu
+Abstract
+We develop an open-source, end-to-end software (named QHDOPT), which can solve non-
+linear optimization problems using the quantum Hamiltonian descent (QHD) algorithm. QH-
+DOPT offers an accessible interface and automatically maps tasks to various supported quantum
+backends (i.e., quantum hardware machines). These features enable users, even those without
+prior knowledge or experience in quantum computing, to utilize the power of existing quantum
+devices for nonlinear and nonconvex optimization tasks. In its intermediate compilation layer,
+QHDOPT employs SimuQ, an efficient interface for Hamiltonian-oriented programming, to facil-
+itate multiple algorithmic specifications and ensure compatible cross-hardware deployment. The
+detailed documentation of QHDOPT is available at https://github.com/jiaqileng/QHDOPT.
+1
+Introduction
+Nonlinear optimization, also known as nonlinear programming, is a branch of mathematical op-
+timization concerned with solving problems in which the objective function, constraints, or both,
+exhibit nonlinearity. While nonlinear optimization problems are common in various application
+fields such as engineering, management, economics, and finance, these problems are in general
+nonconvex with complicated landscape features like multiple local stationary points, valleys, and
+plateaus. As the number of variables grows, the complexity of the problem could grow rapidly,
+posing a significant challenge in obtaining globally optimal solutions.
+Several open-source and commercial software packages, including Ipopt [19], Gurobi [15], and
+CPLEX [7], have been developed to tackle large-scale nonlinear optimization problems.
+While
+these optimizers can incorporate powerful heuristics to enhance performance for certain problem
+instances, there is no polynomial-time guarantee for these optimizers because nonlinear optimization
+∗Samuel Kushnir and Jiaqi Leng contributed equally to this work.
+Most of the work was completed at the
+University of Maryland.
+1
+arXiv:2409.03121v1  [quant-ph]  4 Sep 2024
+is generally NP-hard. Often, the problem structure is unknown, and there is no commonly agreed-
+upon go-to optimizer for nonlinear optimization in practice.
+Quantum computers are emerging technologies that can leverage the laws of quantum me-
+chanics to offer theoretical and practical advantages over classical computers in solving large-scale
+computational problems. Unlike their classical counterparts, quantum computers utilize a unique
+phenomenon known as quantum tunneling to accelerate the solution of nonconvex optimization
+problems. Specifically, a quantum particle can pass through a high potential barrier that would
+be insurmountable classically due to insufficient energy. This exotic behavior enables a quantum
+computer to bypass sub-optimal solutions, efficiently navigating the complex landscape of nonlinear
+optimization.
+Recently, Leng et al. [21] proposes a novel quantum algorithm named Quantum Hamiltonian
+Descent (QHD). QHD is inspired by the observation that many first-order (i.e., gradient-based)
+methods can be interpreted as dynamical processes governed by physical laws. For example, it
+has been shown that the celebrated Nesterov’s accelerated gradient descent algorithm can be mod-
+eled by a time-dependent Lagrangian mechanical system that would find local minima in the sys-
+tem [38, 42]. By upgrading the classical Lagrangian mechanics to quantum mechanics, we end up
+with a minimum-finding quantum process, just like gradient descent. Additionally, this quantum
+dynamical process demonstrates the quantum tunneling effect, making it a competitive candidate
+for solving nonconvex optimization problems. Simulating this quantum dynamical process on a
+quantum computer gives rise to QHD, a simple but powerful quantum algorithm for continuous
+optimization, especially nonlinear problems with nonconvex objective functions. A follow-up work
+by Leng et al. [22] shows that QHD can solve a family of hard optimization instances in polyno-
+mial time, while an empirical study suggests that these problem instances are intractable for many
+classical optimization algorithms such as branch-and-bound, stochastic gradient descent, interior
+point method, etc.
+A key feature of QHD is that it is formulated as a quantum evolution, which can be simulated
+on both digital and analog quantum computers.
+This feature allows us to implement QHD to
+tackle real-world tasks with near-term realizable quantum computers. Digital quantum computers
+perform computation by applying a sequence of elementary quantum gates to an initial quantum
+state. These machines exhibit provable quantum advantages over classical (digital) computers for
+certain computational tasks, however, they require a large number of digital (i.e., error-corrected)
+qubits. Although there has recently been a groundbreaking experimental demonstration of early
+fault tolerance [8, 14, 35, 37], existing digital quantum computers have not yet reached the size
+necessary to accelerate the solution of real-world problems in application domains such as manage-
+ment, finance, and engineering [6, 11]. Analog quantum computers solve computational tasks by
+configuring and emulating a real quantum system and then performing quantum measurements.
+These devices are easier to fabricate, control, and scale [29, 34, 41], while they are unavoidably
+noisy, and no general error correction technique is currently practical [3, 24]. Leng et al. [21] pro-
+posed a systematic technique named Hamming encoding that enables us to implement QHD to
+solve quadratic programming (QP) problems on analog quantum computers with Ising Hamilto-
+nian. This technique is exemplified in solving 75-dimensional nonconvex QP problems, where the
+noisy real-machine implementation of QHD outperforms existing open-source nonlinear optimiza-
+tion software like Ipopt.
+In this paper, we develop QHDOPT, an end-to-end implementation of QHD for nonlinear opti-
+mization. A notable feature of QHDOPT is that it supports the deployment of QHD to multiple
+quantum computing hardware, including gate-based quantum computers such as IonQ, and ana-
+log quantum computers such as D-Wave. QHDOPT provides a user-friendly interface, with which a
+nonlinear optimization problem can be specified via either matrix/numeric or symbolic description.
+2
+Then, the implementation of QHD is fully automatized and the (approximate) optimal solutions
+will be returned once the computation is completed. The mid-level compilation and cross-hardware
+deployment are achieved by utilizing SimuQ for Hamiltonian-oriented programming [30].
+Organization.
+The rest of the paper is organized as follows.1 In Section 1.1, we explain the
+general problem formulation for nonlinear optimization problems that can be processed and solved
+by QHDOPT. In Section 1.2, we discuss the workflow of QHDOPT including the quantum backend and
+classical refinement. In Section 1.3, we discuss several unique design features of QHDOPT, especially
+the multi-backend compatibility achieved by incorporating the Hamiltonian-oriented programming
+(HOP) framework. In Section 2, we briefly review the QHD algorithm and its implementation on
+both digital and analog quantum computers. Then, in Section 3, we sketch the workflow of the
+software, including all major steps in the implementation of QHD and classical post-processing.
+Section 4 provides two worked examples of modeling and solving nonlinear optimization problems.
+In Section 5, we review the current state and trend of quantum optimization software. We conclude
+with a comparison of QHDOPT with other available open-source optimizers in Section 6.
+1.1
+Problem formulation: box-constrained nonlinear optimization
+The package QHDOPT solves nonlinear programming problems of the following form:
+min
+x
+f(x1, . . . , xn) =
+n
+X
+i=1
+gi(xi)
+|
+{z
+}
+univariate part
++
+m
+X
+j=1
+pj(xkj)qj(xℓj)
+|
+{z
+}
+bivariate part
+,
+(1.1a)
+s.t. Li ≤xi ≤Ui, ∀i ∈{1, . . . , n},
+(1.1b)
+where x1, . . . , xn are n variables subject to the box constraint xi ∈[Li, Ui] ⊂R for each i = 1, . . . , n,
+and the indices kj, ℓj ∈{1, . . . , n} and kj ̸= ℓj for each j = 1, . . . , m. The functions gi(xi), pj(xkj),
+and qj(xℓj) are real univariate differentiable functions defined on R. Note that the univariate part
+in (1.1a) has at most n terms because we can always combine separate univariate functions of a
+fixed variable xi into a single one. However, there is no upper bound for the integer m (i.e., the
+number of bivariate terms).2
+The nonlinear optimization problem (1.1) is in general NP-hard [16] and can be used to model
+several common classes of optimization problems, including linear programming, quadratic pro-
+gramming, and polynomial optimization (with box constraints). In the following examples, we
+show how to formulate some standard nonlinear optimization problems in the form of (1.1a).
+Example 1 (Box-constrained Quadratic programming). A quadratic programming problem with
+a box constraint takes the form:
+min
+x
+f(x) := 1
+2x⊤Qx + b⊤x
+(1.2a)
+s.t. 0 ≤x ≤1,
+(1.2b)
+1This paper is not intended to be a comprehensive tutorial or documentation on QHDOPT. Instead, we direct the
+readers to https://github.com/jiaqileng/QHDOPT for the source code, examples, tutorials, and documentation.
+2It is generally impossible to combine a sum of products into a single product form. For example, we can not find
+two univariate functions p(x) and q(y) such that p(x)q(y) = sin(x)y + xey.
+3
+where Q ∈Rn×n is a symmetric matrix and b is a real-valued vector of dimension n. The objective
+function can be written as
+f(x) =
+n
+X
+i=1
+1
+2Qi,ix2
+i + bixi
+
++
+n
+X
+1≤k<ℓ≤n
+Qk,ℓxkxℓ.
+This function is represented by (1.1a) by choosing
+gi(xi) = 1
+2Qi,ix2
+i + bixi,
+∀i = 1, . . . , n,
+(1.3a)
+pj(xkj) = Qkj,ℓjxkj,
+qj(xℓj) = xℓj,
+∀j ∈
+
+1, . . . , n(n −1)
+2
+
+.
+(1.3b)
+Here (kj, ℓj) are the j-th pair in the enumeration {(k, ℓ) : 1 ≤k < ℓ≤n}.
+While the problem formulation can only handle box constraints, we note that many optimization
+problems with more sophisticated constraints can be reformulated in the form of (1.1) by adding
+the constraints as a penalty term in the objective function.
+Example 2 (Spherical constraints). Consider the optimization problem with n variables:
+min
+x
+f(x) :=
+n
+X
+j=1
+αjxj
+(1.4a)
+s.t.
+n
+X
+j=1
+x2
+j = 1,
+(1.4b)
+where αj are real scalars for all j = 1, . . . , n. The feasible set of this problem is the n-dimensional
+sphere with radius 1, which can not be directly recast as a box in the form of (1.1b). Meanwhile, we
+observe that all the variables must take values between 0 and 1 because the unit sphere is contained
+in the unit (hyper-)cube. Therefore, we can reformulate (1.4) to a box-constrained optimization
+problem by the penalty method:
+min
+x
+f(x) :=
+n
+X
+j=1
+αjxj + λ
+
+
+n
+X
+j=1
+x2
+j −1
+
+
+2
+,
+(1.5a)
+s.t. 0 ≤x ≤1.
+(1.5b)
+This new problem can be handled by our software QHDOPT since the objective function (1.5a) only
+involves uni- and bi-variate monomials. As the penalty coefficient λ > 0 grows, we can show that
+the solution to the box-constrained problem (1.5) will eventually converge to the optimal solution
+to the original problem (1.4).
+It is worth noting that the problem formulation supported by QHDOPT is restrictive, and there
+exist many general nonlinear optimization problems that cannot be directly expressed in (1.1). For
+example, our formulation cannot deal with objective functions involving trivariate monomials (e.g.,
+xyz). While, in theory, QHD can handle box-constrained optimization models given access to ideal
+quantum hardware, in QHDOPT we limit the appearance of trivariate parts or higher to cater to the
+current quantum hardware restrictions.
+4
+Additionally, we note that there may be several corner cases that are representable by (1.1)
+but would require an excessively long time for QHDOPT to parse and solve. For example, when
+the objective function involves thousands of bivariate functions, it might take QHDOPT minutes to
+compile and implement the automatic differentiation subroutine based on JAX. We advise users
+to prioritize the use cases with low-degree polynomials, bounded exponential functions, and simple
+trigonometric functions.
+1.2
+Solving problems in QHDOPT
+QHDOPT utilizes the Quantum Hamiltonian Descent algorithm to facilitate the solution of nonlinear
+and nonconvex optimization problems. Theoretically, Quantum Hamiltonian Descent, when run-
+ning with an ideal fault-tolerant quantum computer, can solve many optimization problems up to
+global optimality given sufficiently long runtime [21]. However, at the current stage, due to the lack
+of fault tolerance, we can only implement Quantum Hamiltonian Descent in a low-precision and
+noisy manner, which significantly reduces the solution quality promised by the theoretical guaran-
+tee. To mitigate the noisy performance of near-term quantum hardware with limited resources, we
+adopt a hybrid quantum-classical computing workflow in QHDOPT to achieve optimal performance,
+as illustrated in Figure 1B.
+Pre-processing and problem encoding.
+First, we map a box-constrained nonlinear optimiza-
+tion problem to a quantum-mechanical system with finite degrees of freedom. This reduced quan-
+tum model can be regarded as a finite-precision approximation of the original QHD model. Then,
+this quantum model is embedded into a larger quantum system that is natively executable using
+one of the supported quantum backends. This process is called Hamiltonian programming. While
+the quantum hardware only “sees” a reduced version of the original problem, the Hamiltonian
+embedding technique [23] ensures that the spatial structure inherited from the original problem is
+preserved and naturally encoded in the quantum operator. Therefore, QHDOPT allows us to run a
+coarse-grained version of QHD on near-term quantum devices.
+Deployment and decoding.
+Then, the quantum operator that encodes the original nonlinear
+optimization problem is constructed and executed on a quantum backend.
+Currently, QHDOPT
+supports three backends: the D-Wave quantum computer, the IonQ quantum computer, and a
+classical simulator based on QuTiP. The measurement results from quantum devices are in 0-
+1 format (i.e., binaries), which requires a decoder to recover the corresponding solution in the
+continuous space (e.g., the unit box).
+Classical refinement.
+Limited by the size and coherent time of current quantum devices, the
+quantum-generated solutions are of low precision and intrinsically noisy. QHDOPT relies on classical
+local search algorithms, such as first- and second-order methods, to improve numerical precision.
+Currently, QHDOPT supports two local optimizers: a general-purpose interior point method (Ipopt)
+and a truncated Newton method (TNC) implemented in SciPy. While we do not include other
+local search subroutines in QHDOPT, we note that generic local optimizers allowing box constraints
+should work as well.
+Since QHDOPT leverages local search algorithms as refiners, the output solutions are necessarily
+locally optimal (i.e., first- or second-order stationary points, depending on the choice of refinement
+subroutine).
+That being said, we would like to note that the Quantum Hamiltonian Descent
+(QHD) algorithm, when executed on a large fault-tolerant quantum computer, is able to find
+5
+Domain Applications
+Engineering, Management, 
+Economics, Finance
+Quantum Algorithm
+Quantum Hamiltonian 
+Descent (QHD)
+Quantum Software
+QHDOPT
+Quantum Hardware
+D-Wave, IonQ, 
+Classical Simulator (QuTiP)
+Input Format
+SymPy / QP
+QHDOPT 
+Interface
+Box-Constrained 
+Nonlinear Optimization
+min
+𝑥𝑥∈𝛀𝛀𝑓𝑓(𝑥𝑥)
+QHD Implementation
+𝐻𝐻𝑡𝑡
+Discretize ̂𝐻𝐻𝑡𝑡
+Embed ̃𝐻𝐻𝑡𝑡
+Device Instruction
+𝐻𝐻dev 𝑡𝑡
+SimuQ     Compiler
+Hamiltonian-Oriented 
+Programming
+QHDOPT 
+Post-Processor
+Optimal
+Solution
+A
+B
+Figure 1: An Overview of QHDOPT. A. Building the stack of quantum computing for nonlinear optimization.
+B. The workflow of QHDOPT, inspired by the Hamiltonian-oriented programming paradigm.
+the global minimum for a large family of nonconvex functions with mild assumptions, provided
+that the runtime is sufficiently long [21, Theorem 2]. The performance of QHDOPT for practical
+problems, however, heavily depends on the quality of near-term quantum devices, which are often
+of limited scale and prone to physical noise. Meanwhile, it is also possible to refine the quantum-
+generated solutions using a global solver (e.g., Gurobi, BARON); in this case, the global optimality
+is guaranteed, but the post-processing time could be significantly longer. Due to the limited time
+frame, we leave a global-solver-based refinement as future work.
+1.3
+Unique design features
+In what follows, we discuss a few unique design features of our software.
+Hamiltonian-oriented programming (HOP).
+QHDOPT exploits the Quantum Hamiltonian De-
+scent (QHD) algorithm to solve nonlinear optimization problems.
+This quantum algorithm is
+formulated as a Hamiltonian simulation (i.e., simulating the evolution of a quantum-mechanical
+system), encompassing a novel abstraction of computation on quantum devices, which we call
+Hamiltonian-Oriented Programming (HOP). In contrast to the conventional circuit-based
+quantum computation paradigm where theorists describe quantum algorithms in terms of quantum
+circuits, the HOP paradigm describes quantum algorithms as a single or a sequence of quantum
+Hamiltonian evolution. This new paradigm enables us to build a stack of quantum applications
+by leveraging the native programmability of quantum hardware in the development of quantum
+algorithms and software, as illustrated in Figure 1A. The HOP paradigm is empowered by SimuQ, a
+recent framework for programming and compiling quantum Hamiltonian systems by Peng et al. [30].
+In SimuQ, the programming and simulation of quantum Hamiltonian systems are wrapped in user-
+friendly Python methods. This makes the high-level programming and deployment of Hamiltonian-
+oriented quantum algorithms accessible to users with little exposure to real-machine engineering
+and manipulation.
+A detailed discussion on the Hamiltonian programming and compilation in
+QHDOPT is available in Section 3.
+6
+Multi-backend compatibility.
+In QHDOPT, we utilize SimuQ as an intermediate layer for the
+programming of QHD and leverage the SimuQ compiler to realize multi-backend compatibility.
+Through SimuQ, QHDOPT initially constructs a hardware-agnostic Hamiltonian representation of
+QHD (i.e., Hamiltonian embedding) that can be deployed on various quantum backends, including
+D-Wave devices, IonQ devices, and classical simulators via QuTiP [18].
+Automatic differentiation.
+QHDOPT relies on JAX, a high-performance numerical computing
+library, to perform automatic differentiation of smooth, nonlinear objective functions. This feature
+enables QHDOPT to seamlessly post-process quantum-generated solutions using local search optimiz-
+ers.
+2
+Quantum Hamiltonian Descent
+In our software, we utilize QHD to solve box-constrained nonlinear optimization problems as de-
+scribed in (1.1). QHD solves a continuous optimization problem by simulating a quantum dynamical
+system governed by an evolutionary partial differential equation called Schrödinger equation. Here,
+we give a high-level review of this quantum algorithm and more details can be found in [21].
+2.1
+Mathematical formulation and interpretation
+Consider a nonlinear objective function f(x) with a box constraint Ω= {(x1, . . . , xn) ∈Rn : Li ≤
+xi ≤Ui, ∀i = 1, . . . , n}. To solve this optimization problem, QHD requires simulating the following
+Schrödinger equation over the feasible set Ωwith Dirichlet boundary condition, i.e., Ψ(t, x) = 0 for
+x ∈∂Ω,
+i ∂
+∂tΨ(t, x) =
+
+eφt
+
+−1
+2∆
+
++ eχtf(x)
+
+Ψ(t, x),
+(2.1)
+subject to an initial state Ψ(t, x) = Ψ0(x). Here, the operator ∆:= Pn
+i=1
+∂2
+∂x2
+i is the Laplacian
+operator defined in the interior of Ω, and the time-dependent functions eφt and eχt control the
+total energy distribution of the quantum system. In practice, the initial state Ψ0(x) is often chosen
+as a quantum state that is easy to prepare, for example, a Gaussian state or a uniformly random
+state. For general (nonconvex) optimization problems, it is observed that an inverse polynomially
+decaying eφt and polynomially increasing eχt (e.g., φt = −log
+ 1 + γt2, χt = log
+ 1 + γt2 with a
+positive γ) work well for many test problems [21]. With a Gaussian initial state and smooth time-
+dependent functions, the dynamics generated by (2.1) can be simulated using eO(nT) elementary
+gates and eO(T) queries to the objective function f [9].
+Physically, the equation (2.1) describes the time evolution of a quantum particle in the box Ω.
+The time-dependent functions eφt and eχt control the total energy distribution of this quantum
+particle: when their ratio eφt/eχt is large, the kinetic energy dominates and the particle tends to
+bounce around; otherwise, the potential energy takes over and the particle tends to stay still. If we
+choose these functions such that limt→∞eφt/eχt = 0, the kinetic energy of the system is dissipated
+over time and eventually the quantum particle will take a low-energy configuration. At this point,
+if we measure this quantum particle, the measured position (which must lie in the feasible set Ω) is
+likely to give an approximate solution to the problem f(x). In some sense, QHD can be regarded
+as a quantum version of Polyak’s heavy ball method [4, 31].
+QHD describes a quantum particle exploring the optimization landscape f(x). When a high-
+energy barrier emerges, the quantum particle may leverage the quantum tunneling effect to go
+through the barrier and find a lower local minimum. However, simulating the quantum evolution
+7
+(2.1) with a classical computer would require exponential space and time, making this idea imprac-
+tical as a classical optimization algorithm. On the other hand, the evolution (2.1) can be efficiently
+simulated using a quantum computer, which makes QHD a genuine quantum algorithm that can
+leverage the quantum tunneling effect for nonconvex optimization. Theoretically, it has been shown
+that QHD can efficiently find the global minimum for certain nonconvex problems with exponen-
+tially many local minima, while many classical optimizers such as simulated annealing and SGD
+appear to require a much longer time to obtain a global solution [22]. Numerical experiments also
+show that QHD outperforms classical first- and second-order methods in a broad class of nonconvex
+problems with many local stationary points [21].
+2.2
+Real-machine implementation
+Quantum Hamiltonian Descent is formulated as a Hamiltonian simulation task, i.e., solving a
+quantum Schrödinger equation as in (2.1).
+While efficient quantum algorithms, such as those
+proposed by [9], can tackle this simulation task exponentially faster than any known classical
+algorithms, these quantum simulation algorithms require large fault-tolerant quantum computers.
+Such ideal quantum computing hardware has not yet been realized due to the immature progress
+of quantum technology.
+To fully exploit the limited programmability of current quantum hardware such as D-Wave and
+IonQ, QHDOPT employs a technique named Hamiltonian embedding [23] to implement QHD. This
+technique enables us to map the QHD Hamiltonian to a larger Hamiltonian, and the latter can be
+natively simulated on existing quantum devices. This real-machine implementation technique is
+detailed in Section 3.2.
+3
+The Workflow of QHDOPT
+3.1
+Modeling of nonlinear problems
+QHDOPT offers support for two Python-based input formats: the SymPy format for symbolic input
+and the QP format for numerical input (i.e., arrays). These two input formats enable users to
+define their target optimization problems both efficiently and with great flexibility.
+1
+from
+qhdopt
+import QHD
+2
+from
+sympy
+import
+symbols , exp
+3
+4
+x, y = symbols("x y")
+5
+f = y ** 1.5 - (y-0.75) * exp(4*x)
+6
+model = QHD.SymPy(f, [x, y])
+(a) An example using the SymPy input format
+1
+from
+qhdopt
+import QHD
+2
+3
+Q = [[-8, 3],
+4
+[3, -4]]
+5
+b = [3, -1]
+6
+model = QHD.QP(Q, b)
+(b) An example using the QP input format
+Figure 2: Input formats in QHDOPT. QHDOPT supports both symbolic and numerical input formats.
+SymPy format.
+SymPy [26] is a Python package that supports symbolic expression processes.
+Users can specify f(x) in (1.1) by declaring variables in SymPy and constructing the expression, as
+in the code snippet in Figure 2a. Here, we import necessary functions like exp from SymPy and QHD
+from package QHDOPT in lines 1 and 2. We declare variables x and y in SymPy using symbols in line
+3 where the passed string is for SymPy to print the expressions. In line 4, we construct the function
+f(x), where y ** 1.5 represents the exponential y1.5, exp(4*x) represents e4x, and so on. Lastly,
+8
+we create a QHD model instance in line 5 and pass f and a symbol list [ x, y] to it, informing
+the QHD model the target optimization function is f with symbols x and y.
+QP format.
+For users with specific interests in quadratic programming (QP), we provide a
+more efficient input model for them. To specify a QP instance with objective function f(x) =
+1
+2x⊤Qx + b⊤x, we can directly input the matrices Q and b, as in the code snippet in Figure 2b.
+First, we construct Q by a nested Python list or a NumPy array in lines 2 and 3. It is required
+that Q forms a symmetric square matrix. Then we input the vector b as b. Similar to SymPy, we
+construct the instance by calling the QP method from QHDOPT and pass Q, b into it.
+3.2
+Hamiltonian programming and compilation
+Once a nonlinear optimization problem f(x) is defined using one of the supported input formats,
+QHDOPT will form a Hamiltonian description of the corresponding QHD algorithm, as described in
+(2.1). This Hamiltonian description serves as an intermediate layer in the compilation stack and
+is independent of the choice of the backend (i.e., hardware-agnostic). Although QHDOPT automates
+this process, making manual execution unnecessary in most cases, we provide detailed discussions
+for readers who are interested in gaining a deeper understanding of our software’s design.
+There are two major steps in the construction of the Hamiltonian description of QHD, namely,
+spatial discretization and Hamiltonian embedding.
+3.2.1
+Spatial discretization
+First, we need to perform spatial discretization of the QHD Hamiltonian (which is an unbounded
+operator) so that it can be described by a finite-dimensional quantum system. For a thorough and
+mathematically rigorous discussion, readers are encouraged to refer to [21, Appendix F.2.1]. Given
+a nonlinear optimization in the form of (1.1), the QHD Hamiltonian reads the following,
+H(t) = eφt
+
+−1
+2∆
+
++ eχt
+
+
+n
+X
+i=1
+gi(xi) +
+m
+X
+j=1
+pj(xkj)qj(xℓj)
+
+,
+which acts on any L2-integrable functions over the feasible set Ω= {(x1, . . . , xn) ∈Rn : Li ≤xi ≤
+Ui, ∀i = 1, . . . , n}. Here, for simplicity, we assume the feasible set is the unit box, i.e., Li = 0
+and Ui = 1 for all i = 1, . . . , n. We utilize the centered finite difference scheme to discretize this
+differential operator. Suppose that we divide each dimension of the unit box Ωusing N quadrature
+points {0, h, . . . , (N −2)h, 1} (where h = 1/(N −1)), the resulting discretized QHD Hamiltonian
+is an Nn-dimensional operator of the form,
+ˆH(t) = eφt
+
+−1
+2Ld
+
++ eχtFd,
+(3.1)
+where (assuming kj < ℓj for all j = 1, . . . , m)
+Ld =
+n
+X
+i=1
+I ⊗· · · ⊗
+L
+|{z}
+the i-th operator
+⊗. . . I,
+Fd =
+n
+X
+i=1
+I ⊗· · · ⊗
+D(gi)
+| {z }
+the i-th operator
+⊗. . . I +
+m
+X
+j=1
+I ⊗· · · ⊗
+D(pj)
+| {z }
+the kj-th operator
+⊗· · · ⊗
+D(qj)
+| {z }
+the ℓj-th operator
+⊗. . . I.
+9
+Here, I is the N-dimensional identity operator, L and D(g) are N-dimensional matrices given by
+(g is a differentiable function defined on [0, 1] and gi := g(ih) for i = 0, . . . , N −1),
+L = 1
+h2
+
+
+−2
+1
+1
+−2
+1
+...
+...
+...
+...
+1
+−2
+1
+1
+−2
+
+
+,
+D(g) =
+
+
+g0
+g1
+...
+...
+...
+...
+gN−2
+gN−1
+
+
+.
+The tridiagonal L matrix corresponds to the finite difference discretization of the second-order differ-
+ential operator
+d2
+dx2 , and the diagonal matrix D(g) corresponds to the finite difference discretization
+of the univariate function g(x). Note that L has a global phase −2/h2, i.e., L = L′ −2/h2 with
+L′ only contains the off-diagonal part of L. Since the global phase does not affect the quantum
+evolution (therefore, the result of the QHD algorithm), we replace L with L′ in the rest of the
+discussion.
+3.2.2
+Hamiltonian embedding
+The discretized QHD Hamiltonian, as described in (3.1), is a Hermitian matrix with an explicit
+tensor product decomposition structure. This particular structure allows us to leverage the Hamil-
+tonian embedding technique [23] to construct a surrogate Hamiltonian ˜H(t) such that the QHD
+algorithm (i.e., simulating the Hamiltonian ˆH(t)) can be executed by simulating ˜H(t).
+In our
+case, the surrogate Hamiltonian ˜H(t) is an Ising-type quantum Hamiltonian that involves at most
+nN qubits and max(n, m)N two-body interaction terms. This means ˜H(t) can be efficiently simu-
+lated on current quantum computers, including IonQ’s trapped ion systems and D-Wave’s quantum
+annealer.
+To construct the Hamiltonian embedding of ˆH(t), the first step is to build the Hamiltonian
+embeddings of the N-by-N matrices L′ and D(g) (for arbitrary differentiable function g). Both
+are sparse matrices so we can utilize the embedding schemes provided in [23, Section 2.3]. QHDOPT
+allows users to choose from three embedding schemes: Hamming3, unary, and one-hot4. In Table 1,
+we list the details of these embedding schemes when applied to L′ and D(g). We note that the
+Hamming embedding scheme only works for quadratic programming, while the other two schemes
+(unary, one-hot) work for a broader class of nonlinear functions such as exponential functions. To
+be consistent with our source code, we adopt the left-to-right 0-indexing system for bits/qubits,
+e.g., 10011213.
+Embedding
+scheme
+Supported
+input format
+Supported
+backend
+Number
+of qubits
+Embedding of L′
+Embedding of D(g)
+Hamming
+QP, SymPy
+QuTiP,
+IonQ,
+D-Wave
+r = N −1
+Pr−1
+k=0 Xk/h2
+Only for QP, see discus-
+sions below
+Unary
+QP, SymPy
+QuTiP,
+IonQ,
+D-Wave
+r = N −1
+Pr−1
+k=0 Xk/h2
+Pr−1
+k=0(gr−k
+−
+gr−k−1)nk + g0I
+One-hot
+QP, SymPy
+QuTiP, IonQ
+r = N
+Pr−2
+k=0(XkXk+1
++
+YkYk+1)/(2h2)
+Pr−1
+k=0 gr−1−knk
+Table 1: Embedding schemes supported by QHDOPT
+3The details of Hamming embedding can be found in [21, Appendix F.3]. Note that this embedding scheme is
+referred to as “Hamming encoding” in [21].
+4More precisely, the one-hot embedding we implemented in QHDOPT is referred to as “penalty-free one-hot” embed-
+ding in [23].
+10
+In Table 1, the integer r represents the number of qubits used to embed an N-dimensional
+matrix. The operators Xk, Yk, and nk are the Pauli-X, Pauli-Y, and number operator acting at
+site k, respectively,
+X =
+"
+0
+1
+1
+0
+#
+,
+Y =
+"
+0
+−i
+i
+0
+#
+,
+n =
+"
+0
+0
+0
+1
+#
+.
+Since the Hamming embedding scheme is only allowed for quadratic programming, we do not
+consider the Hamming embedding for general nonlinear functions g. Instead, we only consider the
+embedding of the identity and quadratic functions, i.e., g(x) = x and g(x) = x2, their corresponding
+Hamming embeddings are E1 = 1
+r
+Pr−1
+k=0 nk and E2 = (E1)2, respectively.
+Now, we denote E(i)[A] as a Hamiltonian embedding of an N-by-N Hermitian matrix A acting
+on sites (i −1)r, (i −1)r + 1, . . . , ir −1, where i = 1, . . . , n. Then, using the rules of building
+Hamiltonian embeddings [23, Theorem 2], we obtain a nr-qubit Hamiltonian that embeds the
+discretized QHD Hamiltonian ˆH(t),
+˜H(t) = eφt
+ 
+−1
+2
+n
+X
+i=1
+E(i)[L′]
+!
++ eχt
+
+
+n
+X
+i=1
+E(i)[D(gi)] +
+m
+X
+j=1
+E(kj)[D(pj)]E(ℓj)[D(qj)]
+
+.
+(3.2)
+Example 3 (One-hot embedding for x1x2). We give a simple example for the Hamiltonian em-
+bedding of the discretized QHD Hamiltonian when the objective function is f(x1, x2) = x1x2. This
+objective only involves a single bivariate term with p(x) = q(x) = x. We use the one-hot embedding
+with N = r = 3. Then, the Hamiltonian embeddings of L′ and D(x) are,
+E[L′] =
+1
+2h2 (X0X1 + X1X2 + Y0Y1 + Y1Y2) ,
+E[D(x)] = n0 + 1
+2n1,
+respectively. As a result, the full Hamiltonian embedding reads
+˜H(t) =2eφt
+h2 (X0X1 + X1X2 + X3X4 + X4X5 + Y0Y1 + Y1Y2 + Y3Y4 + Y4Y5) +
+eχt
+
+n0 + 1
+2n1
+ 
+n3 + 1
+2n4
+
+.
+In QHDOPT, we use SimuQ to construct the Hamiltonian embedding ˜H(t). The users only need to
+specify the number of qubits r (for each continuous variable), the embedding scheme, and a desired
+backend in the model.optimize() function, as detailed in the next subsection.
+3.3
+Deployment and post-processing
+When the Hamiltonian embedding ˜H(t) of a given problem is built, it can be executed on a sup-
+ported quantum backend by running optimize() (refer to Section 4 for sample code). The quantum
+measurement results are then retrieved from the executing backend in the form of bitstrings. Fol-
+lowing this, QHDOPT implements a series of classical post-processing subroutines. These include
+decoding the raw measurement results (i.e., bitstrings) into low-resolution solutions and refining
+them via a classical local solver. The refined solutions are then returned to the users as final results.
+3.3.1
+Deployment on quantum devices
+Currently, QHDOPT supports three backend devices for deployment, including classical simulators
+(e.g., QuTiP), IonQ, and D-Wave. For all three backend devices, the quantum register is initialized
+11
+to the uniform superposition state. On the IonQ device, the uniform superposition state can be pre-
+pared using a single layer of Hadamard gate; on the D-Wave device, the uniform superposition state
+is the default initial state and it can be prepared in microseconds. When deployed on IonQ, QHDOPT
+uses φt = −log
+ 1 + γt2 and χt = log
+ 1 + γt2 for the time-dependent functions (see Section 2.1
+for details). The time-dependent functions on D-Wave are more restricted and they can only be
+specified as piece-wise linear functions. We find the default annealing schedule (20 microseconds)
+provided by the D-Wave device usually works well in practice. We also showcase user-specified
+time-dependent functions (annealing schedules) in a notebook in the “examples” folder.
+Here, we demonstrate the deployment procedures in QHDOPT using the D-Wave backend, while
+the same process applies to the other two backends. In Figure 3, a snippet of the source code for the
+function QHD.dwave_exec() is displayed. After programming the Hamiltonian embedding and the
+quantum system realizing QHD (lines 2-3), we initiate an abstract D-Wave machine (line 5). Then
+QHDOPT employ SimuQ to compile the Hamiltonian embedding into low-level device instructions
+readable by D-Wave (line 7) using SimuQ’s DWaveProvider(), effectively generating Hamiltonian
+Hdev(t) on the D-Wave devices. Next, the instructions are sent to the D-Wave quantum computer
+to execute (line 9), and the raw quantum samples are collected by QHDOPT as bitstrings (line 12-17).
+1
+def
+dwave_exec(self , verbose=0):
+2
+Hamiltonian , T = ...
+3
+self.qs. add_evolution (Hamiltonian , T) # Hamiltonian
+embedding
+4
+5
+dwp = DWaveProvider (self.api_key) # initiate D-Wave
+machine
+6
+...
+7
+dwp.compile(self.qs , self.shots)
+8
+...
+9
+dwp.run()
+10
+...
+11
+12
+self.raw_result = dwp.results ()
+13
+raw_samples = []
+14
+for i in range(self.shots):
+15
+raw_samples.append(QHD. spin_to_bitstring (self.raw_result[i]))
+16
+17
+return
+raw_samples
+Figure 3: Deploying and executing QHD on the D-Wave quantum computer
+3.3.2
+Decoding
+As we have seen, the real-machine results are in the bitstring format because they are retrieved by
+computational basis measurements in the quantum computer. These bitstrings need to be converted
+to floating-point arrays via the built-in decoder, as presented in Figure 4. This decoder maps a
+bitstring to a floating-point array that represents a low-resolution solution to the input optimization
+problem. For example, if we use the unary embedding for a 2-dimensional problem with resolution
+parameter r = 4, the decoder will map an 8-bit string to a length-2 array. For example, 00010011
+is mapped to [0.25, 0.5]. More details of the embedding schemes and their decoding are available
+in [23].
+3.3.3
+Refinement
+Limited by the size of current quantum devices, in most cases, we can only use a small resolution
+parameter (e.g., r = 8) in the real-machine implementation of QHD. Therefore, the retrieved
+12
+1
+def
+bitstring_to_vec (self , bitstring , d, r):
+2
+if self. embedding_scheme == ’unary ’:
+3
+return QHD. unary_bitstring_to_vec (bitstring , d, r)
+4
+elif self. embedding_scheme == ’onehot ’:
+5
+return QHD. onehot_bitstring_to_vec (bitstring , d, r)
+6
+elif self. embedding_scheme == ’hamming ’:
+7
+return QHD. hamming_bitstring_to_vec (bitstring , d, r)
+8
+else:
+9
+raise
+Exception("Illegal
+embedding
+scheme.")
+Figure 4: Bitstring-to-vector decoder in QHDOPT
+measurement results are merely low-resolution solutions to the specified optimization problem. To
+improve the precision of the solutions, QHDOPT then post-processes the measurement results using
+local search classical optimization methods.
+In principle, any generic local optimizers allowing box constraints should work as well; due to the
+limited resources, we provide two classical refinement options for the users in QHDOPT, including the
+truncated Newton method (TNC) using SciPy and the interior point method using Ipopt. TNC is a
+quasi-Newton method, and the interior point method exploited by Ipopt is a second-order method.
+These classical refiners require the gradient and/or Hessian information of the objective functions.
+For quadratic programming problems (using the QP input format), the gradient and Hessian can
+be computed explicitly:
+∇f(x) = Qx,
+Hf(x) = Q.
+For more general nonlinear optimization problems specified using the SymPy input format, QHDOPT
+computes the gradient and Hessian information by employing Jax [13], a high-performance numer-
+ical computing library developed by Google, to perform auto-differentiation.
+The post-processed results can be retrieved from model.post_processed_samples. By default,
+the post-processing subroutine is enabled and automatically executed by running optimize().
+However, users can also disable post-processing by specifying optimize(fine_tune=False). In
+this case, model.post_processed_samples returns None type.
+4
+Examples using QHDOPT
+In this section, we exhibit two simple examples showcasing the use cases of QHDOPT.
+4.1
+Quadratic programming
+We first consider a 2-dimensional quadratic programming problem, whose objective function is
+defined as follows,
+f(x, y) = −x2 + xy −1
+2y2 + 3
+4x −1
+4y = 1
+2
+h
+x
+y
+i "
+−2
+1
+1
+−1
+# "
+x
+y
+#
++
+h
+3
+4
+−1
+4
+i "
+x
+y
+#
+,
+(4.1)
+for x, y ∈[0, 1].
+In Figure 5, we exemplify using QHDOPT to solve this QP problem with all three backends. Note
+that the API key (not included in QHDOPT) is required to access cloud-based quantum computers
+such as D-Wave and IonQ. By default, QHD.optimize() automatically executes the Scipy TNC
+method to fine-tune the raw quantum measurement data. To switch to the Ipopt optimizer in the
+fine-tuning step, one can specify post_processing_method="IPOPT" in the setup, as shown in line
+17.
+13
+1
+from
+qhdopt
+import QHD
+2
+3
+# Using QP input
+format
+4
+Q = [[-2, 1],[1, -1]]
+5
+b = [3/4, -1/4]
+6
+model = QHD.QP(Q, b, bounds=(0,1))
+7
+8
+# Deployment # 1: D-Wave (default
+embedding
+scheme: unary)
+9
+model.dwave_setup(8, api_key=" DWAVE_API_KEY ")
+10
+model.optimize ()
+11
+12
+# Deployment # 2: IonQ (default
+embedding
+scheme: one -hot)
+13
+model.ionq_setup(6, api_key=" IONQ_API_KEY", time_discretization =30)
+14
+model.optimize ()
+15
+16
+# Model 3: QuTiP
+simulator (default
+embedding
+scheme: one -hot)
+17
+model.qutip_setup(6, post_processing_method ="IPOPT")
+18
+model.optimize ()
+Figure 5: Solving a quadratic programming problem using QHDOPT
+1
+from
+sympy
+import
+symbols , exp
+2
+from
+qhdopt
+import QHD
+3
+4
+# Using
+SymPy
+input
+format
+5
+x, y = symbols("x y")
+6
+f = y ** 1.5 - exp(4*x) * (y-0.75)
+7
+model = QHD.SymPy(f, [x, y],
+8
+bounds=(0,1))
+9
+10
+# Deploying
+QHD on the D-Wave
+device
+11
+model.dwave_setup(8, api_key="API_KEY")
+12
+model.optimize(verbose=1)
+(a) Deploying QHD on D-Wave
+1
+* Coarse
+solution
+2
+Minimizer: [1. 0. 1.]
+3
+Minimum: -1.0
+4
+* Fine-tuned
+solution
+5
+Minimizer: [1. 0. 1.]
+6
+Minimum: -1.0
+7
+Success
+rate: 1.0
+8
+* Runtime
+breakdown
+9
+SimuQ
+compilation: 0.000 s
+10
+Backend
+QPU
+runtime: 0.119 s
+11
+Backend
+overhead
+time: 3.825
+s
+12
+Decoding
+time: 0.019 s
+13
+Fine-tuning
+time: 0.161 s
+14
+* Total
+time: 4.124 s
+(b) Execution Summary
+Figure 6: Solving a nonlinear optimization problem using QHDOPT. The backend overhead time includes
+network transmission time, queue time, etc.
+4.2
+Nonlinear optimization involving exponential function
+Next, we consider the following nonlinear minimization problem with the objective function:
+f(x, y) = y3/2 −e4x
+
+y −3
+4
+
+,
+x, y ∈[0, 1].
+(4.2)
+This objective function f(x, y) is not a polynomial; it involves a fractional power and an exponential
+function. In Figure 6a, we illustrate a sample code that runs QHDOPT to solve the problem defined
+above. The function is constructed using the SymPy input format, then deployed on the D-Wave
+quantum computer with resolution parameter r = 8. We may set verbose=1 to print a detailed
+summary of this execution, including the best-so-far coarse and fine-tuned solutions, as well as a
+total runtime breakdown, as shown in Figure 6b.
+5
+The State of Software for Quantum Optimization
+Software packages are crucial for lowering the barrier to developing and implementing quantum
+programs across broad user communities.
+Upon examining the current landscape of quantum
+14
+software for mathematical optimization, we observe that the majority of the software dedicated
+to quantum optimization focuses on addressing combinatorial and discrete optimization problems,
+with limited options available for continuous optimization.
+Generally, a combinatorial optimization problem can be reformulated as a Quadratically Uncon-
+strained Binary Optimization (QUBO) problem, the solution of which is believed to be a promising
+application of quantum computing [33]. There is a rich collection of libraries for quantum and
+quantum-inspired optimization that can be employed to generate QUBO reformulations, including
+QUBO.jl [43], Amplify [25], PyQUBO [45], qubovert [17]. These QUBO problems can be tackled
+by several methods, such as quantum annealing, Quantum Approximate Optimization Algorithms
+(QAOA) [12], and other hybrid approaches [44]. D-Wave’s Ocean SDK [10] enables users to in-
+terface with their direct QPU (i.e., quantum annealer) and hybrid solvers and retrieve results.
+QuEra’s Bloqade.jl [32] is a high-level language for configuring programmable Rydberg atom ar-
+rays, which can be used to implement annealing-type quantum algorithms and discrete optimization
+problems like QUBO [28]. Los Alamos Advanced Network Science Initiative has also released a
+package named QuantumAnnealing.jl [27] for simulation and execution of quantum annealing. Be-
+sides, several software packages have been published for programming quantum circuits, including
+IBM’s Qiskit [1], Google’s Cirq [39], Amazon’s Braket SDK [2], Microsoft’s Q# [36], and Xanadu’s
+PennyLane [5]. These tools can be used to deploy QAOA on gate-based quantum computers.
+While there have been a few proposals for solving continuous optimization problems using quan-
+tum or hybrid computing devices such as photonic quantum computers [40] and coherent continuous
+variable machines [20], we are not aware of a software library customized for nonlinear continuous
+optimization problems. In practice, some nonlinear optimization problems, such as quadratic pro-
+gramming, may be reformulated as QUBO problems and handled by the aforementioned software
+tools. However, it remains unclear whether this approach could lead to robust quantum advantages.
+6
+Comparison with Existing Tools
+As we discussed in Section 3, QHDOPT first obtains some low-resolution solutions by executing the
+QHD algorithm for a nonlinear optimization problem through Hamiltonian embedding. Next, the
+software employs a classical local search strategy for fast post-processing of the raw quantum results.
+It is of interest to understand to what extent the quantum component (i.e., the noisy implementation
+of QHD) improves the overall performance of QHDOPT. To this end, we have designed a benchmark
+test to evaluate the performance of QHDOPT for nonlinear and nonconvex optimization problems.
+6.1
+Test problems
+We demonstrate the performance of QHDOPT using fifteen randomly generated nonlinear optimiza-
+tion instances, all with unit box constraints. Problem instances 1 - 5 are nonlinear programming
+(NLP) problems involving two or three continuous variables, as detailed in Table 2. Problem in-
+stances 6 - 10 are quadratic programming (QP) problems drawn from the benchmark devised in
+[21]. Problems instances 11 - 15 are nonlinear programming (NLP) problems involving exponential
+functions, as specified in the following expression:
+f(x) = 1
+2
+N
+X
+i=1
+N
+X
+j=1
+Qi,jexiexj +
+N
+X
+i=1
+bie−xi.
+(6.1)
+The last ten test instances (6 - 15) are intermediate-scale problems with 50 continuous variables,
+ranging from 0 to 1. To ensure the successful mapping of these test problems to quantum computers
+15
+with limited connectivity, these test problems are generated in a way such that their Hessians are
+sparse matrices.5
+Test index
+Problem description
+1
+f(x, y) = −4x2 + 3xy −2y2 + 3x −y
+2
+f(x, y) = −2
+
+x −1
+3
+2 + y2 −1
+3y log
+
+3x + 1
+2
+
++ 5
+
+x2 −y2 −x −1
+2
+2
+3
+f(x, y) = y3/2 −e4x 
+y −3
+4
+
+4
+f(x, y, z) = (2y −1)2 
+z −2
+5
+
+−(2x −1)z + y
+
+2x −3
+2
+2
+5
+f(x, y, z) = 2e−x ∗(2z −1)2 −3
+
+2y −7
+10
+2 e−z + log(x + 1)
+
+y −4
+5
+
+Table 2: Problem instances 1 - 5 for nonlinear programming. All the test instances are nonconvex
+problems with unit box constraints [0, 1]n.
+These instances were generated in a largely random manner, and each possesses multiple local
+solutions, making them fairly challenging for classical optimization software. In our experiment,
+we observed that local solvers, such as Ipopt, cannot find globally optimal (or even approximately
+optimal) solutions unless a large number of random initial guesses are tried. BARON, a highly
+optimized commercial solver for global optimization, can find globally optimal solutions to sparse
+quadratic programming problems in under 1 second, but it takes several minutes to certify global
+optimality for nonlinear programming problems that involve exponential-type objectives.
+6.2
+Experiment setup and results
+In this subsection, we discuss the basic setup of the experiment and the numerical results. We
+test QHDOPT with two different post-processing optimizers (i.e., Ipopt and Scipy-TNC) using the
+randomly generated nonlinear programming instances discussed in the previous section. As a com-
+parison, we also run the two classical optimizers on the same test instances using uniformly random
+initialization. These two classical optimizers are assessed as baselines to illustrate the quantum
+advantage introduced by the D-Wave-implemented Quantum Hamiltonian Descent (QHD). The
+classical components in both experiments, including the decoding of D-Wave samples and classical
+refinement, were executed on a 2022 MacBook Pro laptop with an Apple M2 chip. Our findings
+assert that QHD, when implemented with D-Wave, brings a significant advantage compared to the
+standalone use of classical optimizers.
+6.2.1
+Experiment setup for QHDOPT
+We evaluate QHDOPT on this benchmark using the D-Wave Advantage_system6.3 as the quantum
+backend. For a fair comparison, we use the unary embedding scheme for all instances, including
+quadratic and non-quadratic problems. The anneal time is set to be the default value, i.e., 20
+microseconds. The total quantum runtime per shot (see the “QPU” columns in Table 4) is calcu-
+lated as the arithmetic mean of the “qpu_access_time” reported by D-Wave, which includes the
+programming, state preparation, annealing, and decoding. Note that we do not include the trans-
+mission time and the task queuing time in our report. We test QHDOPT with two post-processing
+optimizers (i.e., Ipopt and Scipy-TNC), and the classical post-processing (more precisely, classical
+refinement) time is reported in the “Classical Refine” columns in Table 4. The standard deviation
+5Detailed expressions of these test instances are provided in the software repository, see the “examples” folder.
+16
+of the classical refinement time is also reported in the parenthesis. Except for the initial guesses,
+both solvers use the default parameters as provided with their Python API.
+6.2.2
+Baseline using classical optimizers
+As a comparison, we also test three classical optimizers for the same set of problems: Ipopt, Scipy-
+TNC, and BARON. The first two optimizers are initialized with 1000 uniformly random guesses in
+the unit box [0, 1]d (where d is the problem dimension), and the runtime data for the 1000 runs have
+been collected. For a fair comparison, we use the same random seeds for both methods. BARON
+is executed to generate global solutions with a 2-minute timeout. Except for the initial guesses, all
+solvers use the default parameters as provided with their Python API. Table 5 shows the runtime
+of the three classical solvers: for Ipopt and TNC, the arithmetic mean (and standard deviation) of
+the runtime is reported; for BARON, the total runtime is reported.
+Note that for the last five test instances, BARON failed to certify the global optimality of
+the obtained solutions within the 2-minute timeout window. In Table 6, we further investigate
+BARON’s solution quality. Our results suggest that, while BARON can find solutions as good as
+those from the other tested solvers in a comparable timescale, a much longer time is required to
+prove the global optimality of the obtained solutions. Therefore, we regard the solution returned
+by BARON as the global minimum.
+6.2.3
+Performance metric
+In the experiments, we use time-to-solution (TTS) as the key metric to evaluate the performance
+of various optimization methods. TTS is defined as the total runtime required by a method to
+achieve at least 0.99 success probability. It can be calculated using the following formula,
+TTS = t0 ×
+ln(1 −0.99)
+ln(1 −ps)
+
+,
+where t0 is the (average) runtime per shot, and ps is the success probability.
+For all the 15
+test instances, the time-to-solution data of four methods (QHD+Ipopt, QHD+TNC, Ipopt, and
+TNC) are presented in Table 3. For the experiments involving QHD (i.e., the results in Table 4),
+t0 is calculated as the sum of average QPU time and average classical refinement time; for the
+experiments that only involve classical optimizers (i.e., the results in Table 5), t0 is equivalent to the
+(average) classical runtime. The success probability ps is estimated by the fraction of “successful”
+events in the 1000 samples/trials. Here, a result x′ is considered successful if the optimality gap
+f(x′) −f(x∗) is less than 0.001, where x∗is the solution obtained by BARON.
+Test
+index
+QHD+Ipopt
+QHD+TNC
+Ipopt
+TNC
+Test
+index
+QHD+Ipopt
+QHD+TNC
+Ipopt
+TNC
+1
+2.05e-1
+3.68e-2
+7.19e+1
+1.57e+0
+9
+1.82e-1
+4.44e-2
+3.17e+1
+2.68e+1
+2
+5.69e-1
+1.11e-1
+7.56e+1
+3.73e+0
+10
+8.94e-1
+2.06e-1
+7.65e+0
+5.50e+0
+3
+5.50e-1
+3.52e-2
+8.51e+1
+3.83e+0
+11
+1.21e+0
+1.17e-2
+1.98e-1
+3.65e-2
+4
+4.60e+0
+2.95e-1
+3.20e+1
+2.10e+0
+12
+7.57e+0
+3.32e-2
+4.15e+0
+2.22e-1
+5
+5.14e-1
+6.73e-2
+6.67e+1
+3.03e+0
+13
+3.78e+2
+2.80e-1
+3.52e+1
+1.38e-1
+6
+3.74e-1
+6.51e-2
+9.41e-1
+5.12e+0
+14
+6.06e-1
+3.56e-2
+7.82e+0
+3.92e-1
+7
+9.42e-1
+1.49e-1
+3.12e+1
+1.15e+1
+15
+1.36e+0
+3.26e-2
+9.34e+0
+1.36e-1
+8
+3.96e-2
+5.14e-3
+4.30e-1
+9.57e-1
+Table 3: Time-to-solution data of all four methods (unit: second). The lowest TTS is underlined
+per instance.
+17
+Test
+Index
+QHD+Ipopt
+QHD+TNC
+QPU
+Classical Refine
+SP
+TTS
+QPU
+Classical Refine
+SP
+TTS
+1
+1.15e-3
+2.03e-1 (5.87e-4)
+9.96e-1
+2.05e-1
+1.15e-3
+3.19e-2 (1.41e-5)
+9.84e-1
+3.68e-2
+2
+9.97e-4
+3.16e-1 (8.08e-3)
+9.23e-1
+5.69e-1
+9.97e-4
+5.24e-2 (1.16e-4)
+9.12e-1
+1.11e-1
+3
+1.08e-3
+3.35e-1 (2.88e-3)
+9.40e-1
+5.50e-1
+1.08e-3
+2.96e-2 (1.17e-4)
+9.82e-1
+3.52e-2
+4
+1.25e-3
+1.6e+0 (5.48e-3)
+7.98e-1
+4.60e+0
+1.25e-3
+1.28e-1 (2.68e-4)
+8.67e-1
+2.95e-1
+5
+1.23e-3
+3.64e-1 (1.08e-3)
+9.62e-1
+5.14e-1
+1.23e-3
+5.75e-2 (3.34e-5)
+9.82e-1
+6.73e-2
+6
+1.69e-3
+2.03e-2 (5.96e-3)
+2.39e-1
+3.74e-1
+1.69e-3
+1.57e-3 (4.85e-4)
+2.08e-1
+6.51e-2
+7
+2.04e-3
+2.34e-2 (1.64e-3)
+1.20e-1
+9.42e-1
+2.04e-3
+1.99e-3 (4.92e-4)
+1.20e-1
+1.49e-1
+8
+1.49e-3
+1.83e-2 (1.93e-3)
+9.23e-1
+3.96e-2
+1.49e-3
+1.08e-3 (2.81e-4)
+9.78e-1
+5.14e-3
+9
+2.01e-3
+1.81e-2 (3.90e-3)
+4.36e-1
+1.82e-1
+2.01e-3
+2.35e-3 (3.48e-4)
+3.92e-1
+4.44e-2
+10
+2.11e-3
+2.02e-2 (5.62e-3)
+1.09e-1
+8.94e-1
+2.11e-3
+2.91e-3 (5.21e-4)
+1.06e-1
+2.06e-1
+11
+2.04e-3
+9.91e-2 (2.24e-2)
+3.42e-1
+1.21e+0
+2.04e-3
+9.69e-3 (6.67e-4)
+9.97e-1
+1.17e-2
+12
+2.14e-3
+9.25e-2 (1.38e-2)
+4.45e-1
+7.57e+0
+2.14e-3
+8.94e-3 (1.19e-3)
+8.67e-1
+3.32e-2
+13
+2.09e-3
+1.62e-1 (2.08e-2)
+2e-3
+3.78e+2
+2.09e-3
+1.19e-2 (8.99e-4)
+2.11e-1
+2.80e-1
+14
+1.94e-3
+5.89e-2 (1.33e-2)
+3.83e-1
+6.06e-1
+1.94e-3
+6.94e-3 (7.84e-4)
+7.46e-1
+3.56e-2
+15
+2.13e-3
+8.26e-2 (1.13e-2)
+2.53e-1
+1.36e+0
+2.13e-3
+8.75e-3 (6.67e-4)
+8.88e-1
+3.26e-2
+Table 4: Performance of QHDOPT on 15 randomly generated nonlinear programming test instances.
+“SP” represents success probability. The units of quantum runtime (i.e., “QPU”), classical post-
+processing time (i.e., “Classical Refine”), and time-to-solution (i.e., “TTS”) are second. The stan-
+dard deviation of classical post-processing time is shown in the parenthesis. The lowest TTS in a
+row is underlined.
+Test
+Index
+Ipopt
+TNC
+BARON
+Avg. Runtime
+SP
+TTS
+Avg. Runtime
+SP
+TTS
+Runtime
+1
+1.33e+1 (2.22e-3)
+5.72e-1
+7.19e+1
+2.82e-1 (1.29e-5)
+5.64e-1
+1.57e+0
+1.00e-2
+2
+1.29e+1 (4.87e-3)
+5.44e-1
+7.56e+1
+5.86e-1 (2.72e-4)
+5.15e-1
+3.73e+0
+1.00e-2
+3
+2.09e+1 (1.61e-2)
+6.78e-1
+8.51e+1
+6.85e-1 (1.08e-4)
+5.61e-1
+3.83e+0
+1.00e-2
+4
+9.74e+0 (4.71e-3)
+7.54e-1
+3.20e+1
+5.31e-1 (2.68e-4)
+6.87e-1
+2.10e+0
+1.00e-2
+5
+1.43e+1 (2.78e-3)
+6.27e-1
+6.67e+1
+6.42e-1 (3.30e-5)
+6.23e-1
+3.03e+0
+1.00e-2
+6
+3.77e-2 (1.39e-2)
+1.70e-1
+9.41e-1
+6.69e-3 (1.47e-3)
+6.00e-3
+5.12e+0
+1.90e-1
+7
+5.44e-2 (1.50e-2)
+8.00e-3
+3.12e+1
+5.00e-3 (7.01e-4)
+2.00e-3
+1.15e+1
+4.00e-2
+8
+4.78e-2 (1.39e-2)
+4.05e-1
+4.30e-1
+5.04e-3 (1.59e-3)
+2.40e-2
+9.57e-1
+3.00e-2
+9
+4.83e-2 (1.22e-2)
+7.00e-3
+3.17e+1
+5.83e-3 (8.76e-4)
+1.00e-3
+2.68e+1
+3.00e-2
+10
+5.38e-2 (2.14e-2)
+3.20e-2
+7.65e+0
+7.18e-3 (1.03e-3)
+6.00e-3
+5.50e+0
+5.00e-2
+11
+9.88e-2 (3.23e-2)
+9.28e-1
+1.98e-1
+9.13e-3 (1.01e-3)
+7.00e-1
+3.65e-2
+1.20e+2
+12
+1.15e-1 (2.70e-2)
+1.21e-1
+4.15e+0
+8.88e-3 (1.27e-3)
+1.71e-1
+2.22e-1
+1.20e+2
+13
+9.99e-2 (2.65e-2)
+1.3e-2
+3.52e+1
+9.19e-3 (1.08e-3)
+2.77e-1
+1.38e-1
+1.20e+2
+14
+1.10e-1 (4.73e-2)
+6.30e-2
+7.82e+0
+9.56e-3 (1.15e-3)
+1.08e-1
+3.92e-1
+1.20e+2
+15
+9.07e-2 (2.81e-2)
+4.40e-2
+9.34e+0
+9.06e-3 (1.02e-3)
+2.74e-1
+1.36e-1
+1.20e+2
+Table 5: Performance of classical optimizers on the same 15 randomly generated test instances as
+a baseline. “SP” represents success probability. The units of classical optimizer runtime time (i.e.,
+“Avg. Runtime” and “Runtime”) and time-to-solution (i.e., “TTS”) are seconds. The standard
+deviation of runtime is shown in the parenthesis. The lowest TTS in a row is underlined.
+6.3
+Interpretation of the experiment results
+Based on the time-to-solution data as reported in Table 3, we observed that QHDOPT (QHD +
+a classical optimizer) always outperforms the standalone use of a classical optimizer for the 15
+randomly generated test instances. As for the two local optimizers, we find that Scipy-TNC works
+better than Ipopt as a post-processing subroutine. While the two optimizers usually return refined
+samples with comparable success probability, Scipy-TNC always shows a lower TTS due to a notably
+faster runtime. This is potentially because TNC is a quasi-Newton method that does not need to
+solve the full Newton linear system in the iterations.
+Another interesting finding is that the classical refinement times of quantum-generated samples
+(see “Classical Refine” in Table 4) in QHDOPT are significantly shorter than the average runtime of
+18
+Test
+index
+Best found
+obj.
+BARON result
+1
+BARON result
+2
+Test
+index
+Best found
+obj.
+BARON result
+1
+BARON result
+2
+1
+-3
+-3
+-3
+9
+-2.269
+-2.269
+-2.269
+2
+0.354
+0.354
+0.354
+10
+-2.305
+-2.305
+-2.305
+3
+-12.650
+-12.650
+-12.650
+11
+-31.256
+-31.256
+-31.256
+4
+-0.882
+-0.882
+-0.882
+12
+-66.618
+-66.618
+-66.618
+5
+-4.196
+-4.196
+-4.196
+13
+-56.762
+-56.762
+-56.762
+6
+-1.188
+-1.188
+-1.188
+14
+-25.357
+-25.357
+- 25.357
+7
+-2.110
+-2.110
+-2.110
+15
+-59.342
+-59.188
+-59.342
+8
+-1.809
+-1.809
+-1.809
+Table 6: Performance of BARON. BARON result 1 (or 2) indicates BARON’s best-found objective
+function value given a runtime no longer than TNC’s (or Ipopt’s) time-to-solution as reported
+in Table 5. Except for instance 15, BARON always finds the optimal solution in the given time
+windows.
+Figure 7: Comparison of solution quality using randomly generated initial guesses, quantum-generated
+samples, and classically refined solutions.
+the direct use of local optimizers (see “Avg. Runtime” in Table 5). For example, in test instance 1,
+the average post-processing time (using Ipopt) for a quantum-generated initial guess is 0.2 s, while
+the average runtime of Ipopt given uniformly random guesses is 13 s. To further investigate this
+phenomenon, we plot the distribution of objective function values corresponding to three different
+sample groups, including (1) randomly generated initial guesses, (2) quantum (D-Wave) generated
+samples, and (3) TNC refined samples (using quantum-generated samples as initial guesses), as
+shown in Figure 7.6
+While the quantum-generated solutions are limited by low precision, it is
+observed that they are still qualitatively better than random initial guesses. In the subsequent
+post-processing, QHDOPT performs a local search subroutine to refine solution quality by improving
+numerical accuracy. In other words, the quantum sampler in QHDOPT can be regarded as a fast and
+efficient warm-start that devises initial guesses of better quality.
+7
+Conclusion and Future Work
+QHDOPT is the first open-source software leveraging quantum devices for nonconvex nonlinear op-
+timization problems, providing an accessible interface for domain experts without quantum com-
+6In Figure 7, we only plot objective function values for high-dimensional problems, i.e., test instances 6 - 15.
+19
+puting knowledge. Exploiting the idea of Hamiltonian-oriented programming, it efficiently uses
+quantum devices by implementing the Quantum Hamiltonian Descent algorithm with the SimuQ
+framework. We demonstrated QHDOPT’s effectiveness through examples and benchmarks, showing
+its advantage over classical solvers, especially in large, complex instances. However, the current
+limitations of quantum device programmability and scalability constrain our benchmarks’ scale.
+While QHD shows promise in solving complex optimization problems, further empirical studies are
+needed for real-world performance evaluation.
+There are several avenues for future development of QHDOPT. First, it is desired to broaden
+the problem class that can be handled by QHDOPT. Currently, due to hardware limitations, QHDOPT
+supports only the optimization of box-constrained nonlinear problems defined as a sum of univariate
+and bivariate functions.
+We anticipate that, shortly, QHDOPT can be extended to address more
+complicated objective functions as quantum technology and quantum algorithm design continue to
+co-evolve. Second, while local search algorithms work well to improve the precision of quantum-
+generated samples, to obtain a global optimality guarantee, it might be promising to replace the
+refinement/post-processing subroutine in QHDOPT with global optimizers (for example, those based
+on branch-and-bound). Third, with further progress in quantum engineering, QHDOPT is expected
+to support more quantum devices from different platforms, including commercial or laboratory
+devices, which is essential to understanding the advantage of QHDOPT given different combinations
+of embedding schemes and quantum devices. Last but not least, QHDOPT can be expanded into a
+plugin for various domain-specific tools, including those in engineering, management, finance, and
+economics. Adaptions to specific domains are invaluable for users to better utilize quantum devices
+for their domain problems. Our overarching goal is to establish a user-friendly tool, empowering
+individuals and organizations to harness the power of quantum devices to solve challenging problems
+in the real world.
+Acknowledgment
+This work was partially funded by the U.S. Department of Energy, Office of Science, Office
+of Advanced Scientific Computing Research, Accelerated Research in Quantum Computing un-
+der Award Number DE-SC0020273, the Air Force Office of Scientific Research under Grant No.
+FA95502110051, the U.S. National Science Foundation grant CCF-1816695, CCF-1942837 (CA-
+REER), ECCS-2045978, a Sloan research fellowship, the Simons Quantum Postdoctoral Fellowship,
+and a Simons Investigator award through Grant No. 825053. J.L. and Y.P. are also supported by
+an open-source quantum software grant from the Unitary Fund.
+References
+[1] Gadi Aleksandrowicz, Thomas Alexander, Panagiotis Barkoutsos, Luciano Bello, Yael Ben-
+Haim, David Bucher, F Jose Cabrera-Hernández, Jorge Carballo-Franquis, Adrian Chen,
+Chun-Fu Chen, et al. Qiskit: An open-source framework for quantum computing. 2019.
+[2] Amazon Web Services.
+Amazon Braket Python SDK, 2024.
+https://github.com/
+amazon-braket/amazon-braket-sdk-python.
+[3] Juan Atalaya, Song Zhang, Murphy Y Niu, A Babakhani, HCH Chan, Jeffrey M Epstein, and
+K Birgitta Whaley. Continuous quantum error correction for evolution under time-dependent
+Hamiltonians. Physical Review A, 103(4):042406, 2021.
+20
+[4] Hedy Attouch, Xavier Goudou, and Patrick Redont. The heavy ball with friction method, I. the
+continuous dynamical system: global exploration of the local minima of a real-valued function
+by asymptotic analysis of a dissipative dynamical system. Communications in Contemporary
+Mathematics, 2(01):1–34, 2000.
+[5] Ville Bergholm, Josh Izaac, Maria Schuld, Christian Gogolin, Shahnawaz Ahmed, Vishnu
+Ajith, M Sohaib Alam, Guillermo Alonso-Linaje, B AkashNarayanan, Ali Asadi, et al.
+PennyLane:
+Automatic differentiation of hybrid quantum-classical computations, 2018.
+arXiv:1811.04968.
+[6] Michael E Beverland, Prakash Murali, Matthias Troyer, Krysta M Svore, Torsten Hoef-
+fler, Vadym Kliuchnikov, Guang Hao Low, Mathias Soeken, Aarthi Sundaram, and Alexan-
+der Vaschillo.
+Assessing requirements to scale to practical quantum advantage, 2022.
+arXiv:2211.07629.
+[7] Christian Bliek1ú, Pierre Bonami, and Andrea Lodi. Solving mixed-integer quadratic program-
+ming problems with ibm-cplex: a progress report. In Proceedings of the twenty-sixth RAMP
+symposium, pages 16–17, 2014.
+[8] Dolev Bluvstein, Simon J Evered, Alexandra A Geim, Sophie H Li, Hengyun Zhou, Tom
+Manovitz, Sepehr Ebadi, Madelyn Cain, Marcin Kalinowski, Dominik Hangleiter, et al. Logical
+quantum processor based on reconfigurable atom arrays. Nature, pages 1–3, 2023.
+[9] Andrew M Childs, Jiaqi Leng, Tongyang Li, Jin-Peng Liu, and Chenyi Zhang.
+Quantum
+simulation of real-space dynamics. Quantum, 6:860, 2022.
+[10] D-Wave
+Inc.
+D-Wave
+Ocean
+SDK,
+2023.
+https://github.com/dwavesystems/
+dwave-ocean-sdk.
+[11] Alexander M Dalzell, B David Clader, Grant Salton, Mario Berta, Cedric Yen-Yu Lin, David A
+Bader, Nikitas Stamatopoulos, Martin JA Schuetz, Fernando GSL Brandão, Helmut G Katz-
+graber, et al. End-to-end resource analysis for quantum interior-point methods and portfolio
+optimization. PRX Quantum, 4(4):040325, 2023.
+[12] Edward Farhi, Jeffrey Goldstone, and Sam Gutmann. A quantum approximate optimization
+algorithm, 2014. arXiv:1411.4028.
+[13] Roy Frostig, Matthew James Johnson, and Chris Leary. Compiling machine learning programs
+via high-level tracing.
+Systems for Machine Learning, 4(9), 2018.
+https://github.com/
+google/jax.
+[14] Google Quantum AI.
+Suppressing quantum errors by scaling a surface code logical qubit.
+Nature, 614(7949):676–681, 2023.
+[15] Gurobi Optimization, LLC. Gurobi optimizer reference manual, 2021. https://www.gurobi.
+com.
+[16] Dorit S. Hochbaum. Complexity and algorithms for nonlinear optimization problems. Annals
+of Operations Research, 153:257–296, 2007.
+[17] Joseph T. Iosue. Qubovert, 2022. https://github.com/jtiosue/qubovert.
+21
+[18] J Robert Johansson, Paul D Nation, and Franco Nori. QuTiP: An open-source python frame-
+work for the dynamics of open quantum systems. Computer Physics Communications, 183(8):
+1760–1772, 2012.
+[19] Yoshiaki Kawajir, Carl Laird, and A Wachter. Introduction to Ipopt: A tutorial for down-
+loading, installing, and using Ipopt. Technical report, Tech. Rep., Carnegie Mellon University,
+2006.
+[20] Farhad Khosravi, Ugur Yildiz, Artur Scherer, and Pooya Ronagh.
+Non-convex quadratic
+programming using coherent optical networks, 2022. arXiv:2209.04415.
+[21] Jiaqi Leng, Ethan Hickman, Joseph Li, and Xiaodi Wu. Quantum Hamiltonian Descent, 2023.
+arXiv:2303.01471.
+[22] Jiaqi Leng, Yufan Zheng, and Xiaodi Wu. A quantum-classical performance separation in
+nonconvex optimization, 2023. arXiv:2311.00811.
+[23] Jiaqi Leng, Joseph Li, Yuxiang Peng, and Xiaodi Wu. Expanding hardware-efficiently manip-
+ulable hilbert space via Hamiltonian embedding, 2024. arXiv:2401.08550.
+[24] Seth Lloyd and Jean-Jacques E Slotine. Analog quantum error correction. Physical Review
+Letters, 80(18):4088, 1998.
+[25] Y Matsuda. Research and development of common software platform for Ising machines. In
+2020 IEICE General Conference, 2020. Fixstars Amplify SDK.
+[26] Aaron Meurer, Christopher P. Smith, Mateusz Paprocki, Ondřej Čertík, Sergey B. Kirpichev,
+Matthew Rocklin, AMiT Kumar, Sergiu Ivanov, Jason K. Moore, Sartaj Singh, Thilina Rath-
+nayake, Sean Vig, Brian E. Granger, Richard P. Muller, Francesco Bonazzi, Harsh Gupta,
+Shivam Vats, Fredrik Johansson, Fabian Pedregosa, Matthew J. Curry, Andy R. Terrel, Štěpán
+Roučka, Ashutosh Saboo, Isuru Fernando, Sumith Kulal, Robert Cimrman, and Anthony Sco-
+patz. Sympy: symbolic computing in python. PeerJ Computer Science, 3:e103, January 2017.
+ISSN 2376-5992. doi: 10.7717/peerj-cs.103. URL https://doi.org/10.7717/peerj-cs.103.
+[27] Zachary Morrell and Carleton Coffrin. QuantumAnnealing.jl, 2022. https://github.com/
+lanl-ansi/QuantumAnnealing.jl.
+[28] Minh-Thi Nguyen, Jin-Guo Liu, Jonathan Wurtz, Mikhail D Lukin, Sheng-Tao Wang, and
+Hannes Pichler. Quantum optimization with arbitrary connectivity using Rydberg atom arrays.
+PRX Quantum, 4(1):010316, 2023.
+[29] Jeremy L. O’brien, Akira Furusawa, and Jelena Vučković. Photonic quantum technologies.
+Nature Photonics, 3(12):687–695, 2009.
+[30] Yuxiang Peng, Jacob Young, Pengyu Liu, and Xiaodi Wu. SimuQ: A framework for program-
+ming quantum Hamiltonian simulation with analog compilation. Proc. ACM Program. Lang.,
+8(POPL), Jan 2024.
+[31] Boris T Polyak. Some methods of speeding up the convergence of iteration methods. USSR
+Computational Mathematics and Mathematical Physics, 4(5):1–17, 1964.
+[32] QuEra Computing Inc.
+Quera Bloqade.jl, 2024.
+https://github.com/QuEraComputing/
+Bloqade.jl.
+22
+[33] Rodolfo A Quintero and Luis F Zuluaga.
+QUBO formulations of combinatorial optimiza-
+tion problems for quantum computing devices. In Encyclopedia of Optimization, pages 1–13.
+Springer, 2022.
+[34] Mark Saffman. Quantum computing with atomic qubits and rydberg interactions: progress
+and challenges. Journal of Physics B: Atomic, Molecular and Optical Physics, 49(20):202001,
+2016.
+[35] K Singh, CE Bradley, S Anand, V Ramesh, R White, and H Bernien. Mid-circuit correction
+of correlated phase errors using an array of spectator qubits. Science, 380(6651):1265–1269,
+2023.
+[36] Kartik Singhal, Kesha Hietala, Sarah Marshall, and Robert Rand. Q# as a quantum algorith-
+mic language, 2022. arXiv:2206.03532.
+[37] VV Sivak, Alec Eickbusch, Baptiste Royer, Shraddha Singh, Ioannis Tsioutsios, Suhas Gan-
+jam, Alessandro Miano, BL Brock, AZ Ding, Luigi Frunzio, et al. Real-time quantum error
+correction beyond break-even. Nature, 616(7955):50–55, 2023.
+[38] Weijie Su, Stephen Boyd, and Emmanuel J Candes.
+A differential equation for modeling
+Nesterov’s accelerated gradient method: Theory and insights. Journal of Machine Learning
+Research, 17(153):1–43, 2016.
+[39] The Cirq Developers. Cirq, 2019. https://github.com/quantumlib/Cirq.
+[40] Guillaume Verdon, Juan Miguel Arrazola, Kamil Brádler, and Nathan Killoran. A quantum
+approximate optimization algorithm for continuous problems, 2019. arXiv:1902.00409.
+[41] Göran Wendin.
+Quantum information processing with superconducting circuits: a review.
+Reports on Progress in Physics, 80(10):106001, 2017.
+[42] Andre Wibisono, Ashia C Wilson, and Michael I Jordan. A variational perspective on accel-
+erated methods in optimization. Proceedings of the National Academy of Sciences, 113(47):
+E7351–E7358, 2016.
+[43] Pedro Maciel Xavier, Pedro Ripper, Tiago Andrade, Joaquim Dias Garcia, Nelson Maculan,
+and David E Bernal Neira. QUBO.jl: A Julia ecosystem for quadratic unconstrained binary
+optimization, 2023. arXiv:2307.02577.
+[44] Yoshihisa Yamamoto, Kazuyuki Aihara, Timothee Leleu, Ken-ichi Kawarabayashi, Satoshi
+Kako, Martin Fejer, Kyo Inoue, and Hiroki Takesue. Coherent Ising machines—optical neural
+networks operating at the quantum limit. npj Quantum Information, 3(1):49, 2017.
+[45] Mashiyat Zaman, Kotaro Tanahashi, and Shu Tanaka. PyQUBO: Python library for mapping
+combinatorial optimization problems to QUBO form. IEEE Transactions on Computers, 71
+(4):838–850, 2021.
+23

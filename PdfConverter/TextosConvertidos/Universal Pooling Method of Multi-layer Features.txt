@@ -1,0 +1,1416 @@
+Universal Pooling Method of Multi-layer Features
+from Pretrained Models for Speaker Verification
+Jin Sob Kim, Hyun Joon Park, Wooseok Shin, and Sung Won Han∗
+Korea University
+{jinsob, winddori2002, wsshin95, swhan}@korea.ac.kr
+Abstract
+Recent advancements in automatic speaker verification (ASV) studies have been
+achieved by leveraging large-scale pretrained networks. In this study, we analyze
+the approaches toward such a paradigm and underline the significance of interlayer
+information processing as a result. Accordingly, we present a novel approach for
+exploiting the multilayered nature of pretrained models for ASV, which comprises a
+layer/frame-level network and two steps of pooling architectures for each layer and
+frame axis. Specifically, we let convolutional architecture directly processes a stack
+of layer outputs. Then, we present a channel attention-based scheme of gauging
+layer significance and squeeze the layer level with the most representative value.
+Finally, attentive statistics over frame-level representations yield a single vector
+speaker embedding. Comparative experiments are designed using versatile data
+environments and diverse pretraining models to validate the proposed approach.
+The experimental results demonstrate the stability of the approach using multi-layer
+outputs in leveraging pretrained architectures. Then, we verify the superiority of the
+proposed ASV backend structure, which involves layer-wise operations, in terms of
+performance improvement along with cost efficiency compared to the conventional
+method. The ablation study shows how the proposed interlayer processing aids in
+maximizing the advantage of utilizing pretrained models.
+1
+Introduction
+Automatic speaker verification (ASV) technology has undergone a dramatic evolution in recent years.
+Behind such trends, advancements in deep neural networks (DNNs) support this background. With
+the quantitative improvement of data resources, supervised learning systems based on DNNs have
+rapidly replaced conventional statistical techniques in ASV. Past the transitional form in which the
+two techniques were combined, the entirely DNN-based format has been settled in the ASV field
+with learning from speaker classification given a single utterance [1]. Based on this framework,
+many studies have proposed advanced ASV systems with sophisticated network architectures [2–7],
+improved pooling techniques [7–9], and well-fitting loss objectives [10–13].
+Meanwhile, the pretraining paradigm, which is attested to in natural language processing [14,15],
+has exhibited significant success in automatic speech recognition [16]. Diverse speech pretraining
+methods have been introduced [17–19]. Accordingly, attempts have been made to establish an ASV
+system that leverages the domain-general representations learned from large-scale pretraining. The
+fine-tuning of Wav2vec 2.0 [17], which is a representative self-supervised model, has been discussed
+for transition to ASV systems [20,21]. Some researchers have developed an external backend module
+to transform the final layer output of Wav2vec 2.0 into a speaker-discriminative feature [22, 23].
+Introduced as a broad-task evaluation benchmark for speech-pretrained models, SUPERB [24] has
+inspired several authors to incorporate layer-wise outputs through weighted summation. Based on
+∗Corresponding author
+Preprint. Work on progress.
+arXiv:2409.07770v1  [eess.AS]  12 Sep 2024
+the idea, they have either exploited off-the-shelf ASV architectures [19,25] or suggested customized
+backend modules [26,27] to process the aggregated output of the pretrained models.
+However, we question whether such approaches in leveraging pretrained models exhibit universality
+in diverse setups and whether the methods are suitable for ASV. The main contributions of this study
+are summarized as follows:
+• Through the analysis of the layer-wise potential of several pretrained models and a compre-
+hensive investigation of prior works, we suggest directions for improvement in the use of
+such models in ASV.
+• We introduce a novel approach toward leveraging speech-pretrained models for ASV. Given
+a stack of outputs from multiple layers of the pretrained architecture, we let a convolutional
+network directly create speaker-relevant features from diverse layer/frame receptive fields.
+The advancement of the layer-level pooling strategy is also discussed based on the channel
+attention scheme.
+• Versatile experiments were conducted on universality, performance, and cost-efficiency
+with diverse pretraining types, model sizes, and data environments. The proposed method
+exhibited stability against the varying evaluation setups, as well as a significant performance
+improvement and cost-efficacy, maximizing the benefit of exploiting the pretrained models.
+2
+Related Works
+2.1
+Statistical Modeling Approaches toward ASV
+Gaussian mixture models (GMMs) were widely used in early speaker recognition systems. First
+motivated by [28–30] for text-independent speaker identification, a GMM was trained to maximize
+the likelihood of the given feature vectors from speaker utterances. Subsequently, [31] introduced
+speaker-independent GMM training, referred to as the universal background model (UBM), and
+employed Bayesian adaptation for speakers. The GMM-UBM has become a fundamental element in
+subsequent speaker recognition studies [32–36].
+Later studies have explored the improvement of GMM supervectors through dimensionality reduction
+and refined speaker information. The eigenvoice coefficients were estimated to project the GMM
+supervectors onto a reduced subspace [33]. The separation of the speaker factor and session variability
+was discussed in [35] through joint factor analysis and eigenchannel modeling. Furthermore, the
+i-vector framework [36] utilizes factor analysis to extract the combined variability space of training
+utterances. In combination with a probabilistic linear discriminant analysis [37] scoring backend,
+this framework has become a fundamental basis for text-independent speaker verification (SV)
+systems [38–40].
+2.2
+Deep Learning-based ASV Systems
+With the widespread success of DNNs, researchers have explored their usage in ASV systems. Initial
+efforts were made to incorporate DNNs into the i-vector system [41–43]. As one of the earliest
+methods, d-vector [44] proposed DNN-based speaker feature extraction, which is trained to classify
+speakers from frame-level features. The embeddings [45] and x-vector [1] introduced a primary
+structure of text-independent ASV using DNN, consisting of a backbone network to process the
+frame-level features, a statistical pooling layer, and a segment (utterance)-level process.
+The disclosure of the large-scale speaker recognition dataset VoxCelebs [2,3] has further promoted
+the development of DNN-based SV systems. The baseline systems of VoxCelebs were built using the
+VGG-M [46] or ResNet [47] architectures. Around the same time, Inception-ResNet-v1 [48] was
+trained as an end-to-end SV model [10,11]. In addition to exploiting ready-made networks, various
+proposals have included sophisticated structures, improved from the vanilla x-vector, which is a stack
+of time-delay neural networks (TDNNs) [49]. E-TDNN [4] extended the original form in depth and
+context, and D-TDNN [5] considered the dense connectivity [50] of TDNN layers. ARET [6] adopts a
+split-transform-merge strategy and the residual transformation introduced in ResNeXt [51]. Similarly,
+ECAPA-TDNN [7] leverages the concept of Res2Net [52] followed by a Squeeze-and-Excitation
+(SE) [53] block to build a frame-level neural network.
+2
+In addition to backbone networks, advancements have been introduced in the following components.
+Spatial pyramid pooling [54] was adopted to extract fixed-length embeddings from arbitrary feature
+maps of Inception-ResNet [10,11]. Given the weights through the attention mechanism, the weighted
+statistics were used to represent speaker embeddings [7,8]. Diverse changes have also been considered
+in speaker discriminative training, such as the contrastive approach to triplet loss [10,11] and speaker
+classification using cosine-based softmax variants [12,13].
+2.3
+Leveraging Pretrained Models for Speaker Embedding
+Self-supervised learning has become a broad paradigm in several data-driven research domains [14,
+15,55–58]. Particularly in speech processing, the pretraining of Transformer-based [59] architectures
+is in the spotlight, as domain-general representations can replace manual acoustic features [16–19,60].
+Accordingly, various studies have exploited pretrained models in SV, and the methods can be broadly
+divided into two categories.
+2.3.1
+Self-fitting Approaches
+This approach retrains the pretrained model itself to output speaker embeddings directly and perform
+ASV without additional parameters. SincNet [61] is first trained in an unsupervised manner and
+then fine-tuned for speaker recognition tasks [56]. Both [20] and [21] involve fine-tuning Wav2vec
+2.0 [17] as an ASV system, but differ in the strategy for obtaining speaker representations. One
+uses average pooling over the Transformer layers output [20], and the other inserts a constant cls
+token [14] into the latent representation sequence before the Transformer layers [21].
+2.3.2
+Feature Extraction Approaches
+An additional module is trained to transform the output of the pretrained model into a speaker
+representation. [22] and [23] developed backend models for extracting speaker embeddings that were
+attached on top of pretrained Wav2vec 2.0. Other studies have used the concept of SUPERB [24],
+setting learnable parameters for the weighted summation of the latent representations from each layer.
+Off-the-shelf ASV models, such as X-vector and ECAPA-TDNN, have been adopted to process the
+weighted sum of feature maps [19,24,25]. Multi-head factorized attention pooling was proposed
+based on this idea [26,27].
+3
+Methodology
+Figure 1: Zero-shot ASV performance of pretrained models. VCTK and LibriSpeech represent
+expected situations in noise-controlled recording environments, whereas VoxCelebs offer more
+natural and noisy environments. All models were pretrained on the LibriSpeech dataset.
+3
+3.1
+Preliminaries and Background
+As noted in Section 2.3, leveraging pretrained models has already shown promising results in a
+broad range of areas, including ASV. Better performance and training efficiency in downstream
+tasks are common advantages that can be expected from this paradigm. Recent ASV studies have
+exploited several pretrained models; however, few have attempted to comprehend how to achieve
+such advantages. This study aimed to maximize the benefits of using pretrained models for ASV.
+To offer insights, we discuss the potential of large-scale self-trained representations of ASV. Motivated
+by the feasibility analysis in [20], zero-shot evaluations were conducted on benchmark datasets in
+varying auditorial environments. Figure 1 shows the equal error rates (EERs) of the evaluations subject
+to layer-wise outputs from the renowned speech-processing models Wav2vec 2.0 [17], HuBERT [18],
+and WavLM [19]. Speaker embeddings were pooled on the mean over the frame axis and the cosine
+distance was used to measure the similarity between two audio samples. Further experimental details
+are presented in Section 4.
+According to the results, the layer outputs differed in terms of potential and created distinctive
+distributions in each model, dependent on the pretraining schemes. In addition, given the individual
+layer outputs, no other model apart from Wav2vec 2.0 could significantly benefit from pretraining,
+except when using the VCTK [62] setup. This explains why few pretrained models have been explored
+in self-fitting approaches. Consequently, when the method is focused on a particular model, it likely
+fails on other models, although it could be commonly applied to Transformer-based structures.
+In contrast, SUPERB [24] has inspired many researchers to reap the benefits of several pretrained
+models with a weighted summation of layer-wise outputs [19,25–27]. Along with this discovery, we
+could presume that a sole layer is limited in capturing speaker information and speaker-distinctive
+features are hidden over multiple layers. SUPERB is intended to verify pretraining proposals in broad
+speech-processing tasks. Hence, the linear combination of layer outputs may not be the optimal
+method for extracting speaker representations, thus leaving room for improvement.
+3.2
+Pooling Speaker Information from Pretrained Model
+Figure 2: Overall process of the proposed framework.
+We propose a backend module to extract speaker features from pretrained models. As shown in
+Figure 2, the module encodes a multidimensional feature map into a speaker-representative vector
+in three steps. Given the waveform input, we start with a stack of layer-wise outputs x ∈RC×L×T
+processed from the pretrained model, where C, L, and T denote the hidden dimension, number of
+layers, and frames, respectively. An initial point-wise convolution (1×1 Conv) adjusts the hidden
+size to C = 512.
+3.2.1
+Layer- and Frame-level Processing Network
+As opposed to compressing the layer level instantly, we allow the convolutional neural network
+(CNN) to directly process a stack of layer-wise outputs from the pretrained network. Hence, it creates
+more representative features for the speaker from adjacent relationships of layer- and frame-wise
+information. With some modifications, the D3Net [63] architecture is adopted to capture speaker
+features from diverse receptive areas, based on the dense connections of the multidilated convolutions
+4
+Figure 3: Details of the dense architecture (Figure 2, D2 block) comprising several MDConv
+processes. ⊛k
+d represents a convolutional operator with a kernel size of k and dilation d. ψ(·) denotes
+the composite operation of normalization and nonlinearity, and δ is the number of dilations.
+(MDConvs). The network (D3 block) yields the concatenation of N repeated subnetwork (D2 block)
+outputs, where we set N = 1 for the plainness.
+We add a simple attention-based scaling module (Attentive VAD) before the D2 block to emphasize
+the point-wise latent features. This module assigns weights to individual layers and gauges the
+significance of each frame as follows:
+ˆxl =
+L
+X
+i=1
+wixi
+αl = σ(Wl · ˆxl)
+(1)
+Given the input x ∈RC×L×T , the scalar-weighted summation produces a compressed representation
+ˆxl ∈RC×T [24] for each layer l ∈[1, ..., L]. Subsequently, we let the weight Wl ∈R1×C and
+sigmoid function σ(·) measure the attention score αl ∈RT for each frame. The scores are applied to
+the corresponding layer indices of the original input xl using element-wise multiplication.
+The dense connection and varying range of receptive fields frame-level processing have previously
+been highlighted for capturing meaningful speaker features [5–7]. We expand this concept to the
+layer level while adopting D3Net [63] which innates those structural characteristics. Composed
+of MDConv, D3Net is featured to avoid blind spots occurring from dense connections of dilated
+convolution. Thereby it produces feature maps in varying perspectives in both a comprehensive and
+continuous range of layers and frames. Figure 3 illustrates the D2 block used in this study. The
+point-wise convolution first adjusts the hidden size to C = 128, and the size is maintained throughout
+the following convolutions such that the final dense connection becomes the same size C = 512 as
+the input x. Inspired by ECAPA-TDNN [7], we add an SE block [53] after the D2 dense connection,
+which is followed by a residual connection.
+3.2.2
+Layer Attention Pooling
+When the preceding network captures speaker representations processed from varied perspectives,
+the following step involves aggregating and pooling their portrayal as a single vector. We begin
+by pooling the most representative features at the layer level. Although it differs in fields, the
+multiheaded channel attention scheme (MCA) [64] has proven effective in aggregating multilayered
+features. We apply this method to pool the features over the layer dimensions, as shown in Figure 4.
+The attention module learns to determine the significance of each layer depending on the layer-wise
+statistics, allowing elasticity of gauging interlayer relationships with the expansion of heads.
+Given an output x ∈RC×L×T from the preceding dense architecture, point-wise convolution
+produces a multi-headed representation x ∈R(h·d)×L×T , where we set h = 4 and d = 128.
+5
+Figure 4: Layer attention pooling based on the MCA approach. An SE block rescales the layer
+features from each head, followed by max pooling.
+Then, an SE module is assigned to individual heads, emphasizing the layer-wise head features on
+individual frames. We use a typical SE scheme [53], in which Fsq indicates the average and max
+pooling functions, Wsq ∈RL×L/2 and Wex ∈RL/2×L are weight matrices for the bottleneck
+process with an intermediate ReLU, and Fscale contains the sigmoid activation and element-wise
+multiplication. We pool the maximum value over the layer dimension from the reassembled feature
+map by concatenating the individual heads.
+3.2.3
+Attentive Statistic Pooling
+The self-attention mechanism has proven successful in aggregating speaker embeddings from a
+sequence of frame-level features [7–9]. We exploit this approach in the same manner as in ECAPA-
+TDNN [7], which expands the concept of the weighted mean and standard deviation for channel-
+dependent statistics. Given the input x ∈RC×T , we use the attention-weighted statistics ˜µ, ˜σ ∈RC,
+and the linear transformation W ∈R2C×R and batch normalization follow, where C = 512 and
+R = 192. Finally, AAM-softmax [13] with a scale of 30 and a margin of 0.2 is used to train
+the system; otherwise, we use the cosine distance to measure the similarity between two speaker
+embeddings.
+4
+Experimental Setup
+4.1
+Datasets
+Multiple datasets were employed to compose various model training scenarios and evaluate the ASV
+systems for each setup. We explain the configuration of each dataset and its subsets in detail. Table 1
+summarizes the overall information, where the scale of the speaker pool (low- and high-resource)
+and the auditorial environment (clean and natural) specify the divisions. The audio sources were
+preprocessed with 16 kHz resampling and silence trimming at the beginning and end.
+4.1.1
+VCTK CSTR Corpus [62]
+This dataset consists of high-quality audio recordings from 108 native English speakers of varying ac-
+cents, ages, and regions. Each speaker reads approximately 400 sentences, with minimal background
+noise in the controlled environment. VCTK Corpus has a low-resource setup compared to the others.
+Meanwhile, we removed the samples in which the same transcripts were used across speakers (nos.
+000–024) with the aim of text-independent speaker verification.
+The speaker pool was segmented to split the dataset into training, validation, and test sets. A stratified
+split was used for gender, age, and accents, whereas binning was applied to age. This demographic
+information was also considered when selecting negative-paired trials to prevent evaluation bias.
+While ensuring that the trial set included every combination of speakers, we balanced the number of
+negative pairs based on whether they had the same gender or accent.
+6
+4.1.2
+LibriSpeech [65]
+This dataset comprises approximately 1,000 h of speech recorded by more than 2K speakers, repre-
+senting a high-resource configuration. It is segmented into distinct partitions for training, validation
+(dev), and testing. The recordings are generally of high quality, providing clear speech with transcripts.
+LibriSpeech has been adopted in many previous studies addressing various speech processing tasks
+owing to its extensive size and diverse range of speakers. The trials were composed in the same
+manner as in VCTK Corpus, using speaker gender information, for each validation and testing speaker
+pool.
+4.1.3
+VoxCeleb 1 and 2 [2,3]
+Both datasets serve as benchmarks for evaluating speaker recognition tasks by ensuring a variety
+of acoustic environments and background noise. Each comprises training (dev) and testing splits
+distinguished by speakers. The first offers three verification trials for the ASV task, and we used
+the speaker-distinguished version (also known as “-O”) in this study. The second dataset provides
+the most extensive data for training or testing without any overlapping individuals from the first one.
+However, no evaluation protocol is provided for the second dataset; therefore, the datasets are often
+merged, extending the training data.
+To diverse experimental environments for this study, the two datasets were separated into low- and
+high-resource setups. We built a custom evaluation set from the VoxCeleb2 test speakers considering
+a balanced label distribution and speaker combination. We then cross-used the evaluation sets of
+VoxCeleb1 and 2 for validation.
+Table 1: Details of experimental data. The column Pos. (%) indicates the ratio of positives in the
+evaluation pairs.
+Low-resource Setup
+High-resource Setup
+VCTK
+LibriSpeech
+Clean env.
+Split
+Speakers
+Samples
+Hours
+Trials
+Pos. (%)
+Split
+Speakers
+Samples
+Hours
+Trials
+Pos. (%)
+Train
+72
+27,472
+25.8
+-
+-
+Train
+2,338
+281,241
+960.9
+-
+-
+Valid
+18
+6,965
+6.9
+16,040
+49.9
+Valid
+73
+5,567
+10.7
+36,427
+49.5
+Test
+18
+7,111
+6.7
+16,072
+49.8
+Test
+73
+5,559
+10.5
+36,427
+49.5
+Total
+108
+41,548
+39.4
+32,112
+-
+Total
+2,484
+292,367
+982.1
+72,854
+-
+VoxCeleb1
+VoxCeleb2
+Natural env.
+Split
+Speakers
+Samples
+Hours
+Trials
+Pos. (%)
+Split
+Speakers
+Samples
+Hours
+Trials
+Pos. (%)
+Train
+1,211
+148,642
+340.4
+-
+-
+Train
+5,994
+1,092,009
+2360.2
+-
+-
+Valid
+118
+36,237
+80.0
+66,611
+48.2
+Valid
+40
+4,874
+11.2
+37,720
+50.0
+Test
+40
+4,874
+11.2
+37,720
+50.0
+Test
+118
+36,237
+80.0
+66,611
+48.2
+Total
+1,369
+189,753
+431.5
+104,331
+-
+Total
+6,152
+1,133,120
+2451.2
+104,331
+-
+4.2
+Evaluation Metrics
+The EER and minimum detection cost function (minDCF) are typical measures for evaluating ASV
+systems [66]. The SpeechBrain toolkit 2 was used for the implementation. These metrics consider
+the posterior assessment of the evaluation data. In particular, the model first produces the similarity
+scores of the trial pairs, following which each metric derives a decision threshold to accept or reject
+the claimed authority. Therefore, we devised an additional measure (EER∗) to maintain the test data
+unseen and evaluate the ASV systems more practically. All measures reported the test set evaluation
+score when the best EER performance was achieved on the validation split. The details of each metric
+are described below.
+EER
+N = {i |yi = 0 : i ∈Z},
+P = {i |yi = 1 : i ∈Z}
+FN = {i |ˆyi ≥τ : i ∈N}, FP = {i |ˆyi < τ : i ∈P}
+FAR(τ) = |FN|
+|N|
+FRR(τ) = |FP|
+|P|
+(2)
+2https://github.com/speechbrain
+7
+Given the evaluation dataset (Z) comprising binary authentication labels y∀i ∈{0, 1}, the EER is
+a representative measure of biometric system evaluation. Two different error rates are considered,
+depending on the label. The false acceptance rate (FAR) is the ratio at which the system predicts a
+higher similarity score than the threshold (yi ≥τ) that should actually be rejected (N). In contrast,
+the false rejection rate (FRR) is the ratio at which the system rejects trials (ˆyi < τ) among those that
+should be accepted (P). The FAR and FRR exhibit a tradeoff relationship according to τ, and the
+EER occurs when they result in the same value.
+EER∗
+EER∗= FARZ(τ) + FRRZ(τ)
+2
+s.t. EERU = FARU(τ) = FRRU(τ)
+(3)
+We conducted the test data evaluation (Z) using the threshold (τ) obtained from the EER measurement,
+given the validation dataset (U). Under the given threshold condition, the FAR and FRR can differ
+such that EER∗averages the two error rates. The error rates are denoted as FAR∗and FRR∗in Figure
+5, respectively.
+minDCF
+min
+τ CDet = CMiss · PMiss(τ) · PTarget
++ CFA · PFA(τ) · (1 −PTarget)
+(4)
+The minDCF is an evaluation metric employed in the speaker recognition evaluation conducted by
+the US National Institute of Standards and Technology. This metric assigns different weights to each
+type of error with the parameters CMiss, CFA, and PTarget. The probability PMiss corresponds to the
+aforementioned FRR, whereas PFA represents the FAR. The detection cost (CDet) is calculated as
+defined in (4), and the minDCF metric captures the minimum value over a range of thresholds (τ). In
+this study, CMiss, CFA = 1, and PTarget = 0.01 were used [7].
+4.3
+Comparison Entries and Pretrained Models
+Diverse comparison models were employed to verify the proposed method. X-vector [1] and ECAPA-
+TDNN [7] are representative ASV neural networks that use the Mel-frequency cepstral coefficients
+(MFCCs) as input. The X-vector uses the most basic neural architecture for extracting speaker
+representations from acoustic features. The ECAPA-TDNN comprises a more sophisticated structure
+for each component, such as Res2Block [52] and attention-based temporal pooling [8,9]. Meanwhile,
+SincNet [61] takes a raw waveform as the input and includes a distinctive convolution layer to learn a
+meaningful band-pass. These models can be implemented using Standalone training processes.
+Some studies have presented to adjust pretrained Wav2vec 2.0 [17] self to perform speaker verification
+(Self-fitting) [20,21]. Both have exploited the Transformer output to be trained to become speaker
+embedding. In the former, average pooling was adopted after the Transformer layer. The latter,
+speaker information was aggregated via a constant cls token inserted before the Transformer.
+The Feature extraction approach is another way discussed for leveraging pretrained models in the
+ASV field. We considered the most widely exploited format as a comparison, the weighted summation
+of multilayer outputs, suggested by SUPERB [24]. X-vector and ECAPA-TDNN were employed as
+backend ASV systems, for processing the aggregated multilayer representation.
+We employed several pretrained models to verify methods of leveraging those. Wav2vec 2.0 [17],
+HuBERT [18], and WavLM [19] are representative state-of-the-art models that process human speech
+data. They share the structural similarity of Transformer encoder layers above the CNN; however,
+they vary in their training strategies and objectives. This study limited the pretraining data to the
+LibriSpeech dataset for every model and fixed the pretrained weights for the feature extraction
+approaches. Such restrictions were set to facilitate comparison and identification of the cause and
+effect.
+8
+4.4
+Hyperparameters and Implementation Details
+For all experiments, the training minibatch comprised 128 audio samples truncated to 3s, and the
+cosine distance was adopted to measure the evaluation trial scores. No data augmentation was used
+other than SpecAugment [67] as specified.
+The optimal number of training iterations (steps) was searched in every data setup for all standalone
+ASV and self-fitting approaches (Tables 2 and 3). Combinations of {1, 3, 5} and powers of 10 were
+used, ranging from 1K to 300K. Based on the greedy algorithm, the iteration number that achieved
+the lowest EER from the validation data was adopted. For the methods exploiting pretrained models,
+the hyperparameters were adjusted using Wav2vec 2.0 and shared with the other pretrained models.
+The rest of the hyperparameters, including training strategies and loss functions, were maintained as
+specified in the original.
+The Adam [68] optimizer with a one-cycle learning rate schedule [69] was used to train our model.
+The maximum learning rate was set to 0.003, warming up for the first 10% of the training iterations.
+The same strategies were used for training in the feature extraction type comparisons (Table 4). Codes
+are available here.3
+5
+Results
+We verified our method by comparing it with several ASV approaches in diverse data environmental
+setups. Every entry is reported as the mean score of three different seeds and the standard deviation
+is marked in gray. The unit is denoted in parentheses to the right of the corresponding metric. (L)
+indicates a LARGE model; otherwise, the BASE size is implied.
+Table 2: Comparison using clean speech corpus.
+Type
+ASV model
+Pre. model
+VCTK
+LibriSpeech
+Steps (K)
+EER∗(%)
+EER (%)
+minDCF (10-3)
+Steps (K)
+EER∗(%)
+EER (%)
+minDCF (10-3)
+Standalone
+SincNet [61]
+-
+100
+12.23 ±1.75
+12.26 ±1.72
+9.82 ±0.06
+100
+6.64 ±0.04
+4.97 ±0.33
+4.33 ±0.21
+X-vector [1]
+-
+3
+16.15 ±0.48
+16.22 ±0.48
+8.98 ±0.24
+10
+8.08 ±0.24
+7.99 ±0.34
+4.68 ±0.1
+ECAPA-TDNN [7]
+-
+50
+5.44 ±0.27
+5.35 ±0.31
+5.85 ±0.63
+300
+2.45 ±0.12
+1.91 ±0.17
+1.17 ±0.07
+Self-fitting
+Avg. pool [20]
+Wav2vec 2.0
+3
+6.64 ±0.55
+6.64 ±0.58
+7.58 ±0.51
+100
+3.03 ±0.01
+2.54 ±0.2
+1.74 ±0.19
+HuBERT
+5.56 ±0.61
+5.44 ±0.75
+5.91 ±1.08
+26.12 ±1.36
+26.17 ±1.47
+7.17 ±1.19
+WavLM
+4.63 ±0.23
+4.59 ±0.23
+4.51 ±0.83
+27.29 ±0.48
+27.20 ±0.7
+7.73 ±0.86
+Wav2vec 2.0 (L)
+7.49 ±0.59
+7.53 ±0.48
+8.45 ±0.64
+3.80 ±0.42
+3.42 ±0.35
+2.63 ±0.41
+cls. token [21]
+Wav2vec 2.0
+10
+9.77 ±1
+9.46 ±0.82
+9.80 ±0.1
+100
+3.40 ±0.38
+2.79 ±0.31
+1.75 ±0.28
+HuBERT
+24.02 ±1.32
+24.20 ±1.32
+9.97 ±0.02
+12.21 ±0.19
+12.03 ±0.25
+7.72 ±0.21
+WavLM
+25.80 ±2.03
+25.66 ±2.06
+9.95 ±0.05
+12.07 ±0.4
+11.89 ±0.62
+7.94 ±0.14
+Wav2vec 2.0 (L)
+8.13 ±1.75
+7.91 ±1.88
+9.25 ±0.99
+3.24 ±0.33
+2.62 ±0.28
+1.98 ±0.04
+Feature
+Uni. pool (ours)
+Wav2vec 2.0
+10
+3.74 ±0.15
+3.77 ±0.27
+7.34 ±0.45
+30
+1.57 ±0.08
+1.20 ±0.05
+1.00 ±0.19
+Extraction
+HuBERT
+4.22 ±0.62
+4.27 ±0.57
+6.39 ±0.41
+1.51 ±0.15
+1.18 ±0.13
+0.73 ±0.03
+WavLM
+3.84 ±0.17
+3.68 ±0.05
+6.30 ±0.75
+1.78 ±0.14
+1.48 ±0.28
+0.83 ±0.01
+Wav2vec 2.0 (L)
+3.40 ±0.38
+3.28 ±0.23
+6.85 ±0.15
+1.73 ±0.12
+1.44 ±0.1
+0.83 ±0.09
+5.1
+Comparison with Diverse Types of ASV
+Table 2 reports the experimental results from the VCTK Corpus and LibriSpeech datasets, where
+the comparison includes standalone ASV networks (SincNet, X-vector, and ECAPA-TDNN) and
+self-fitting approaches (Avg. pool and cls. token) for exploiting pretrained models. We observed that
+the use of pretrained models could benefit the convergence speed compared to training from scratch
+in general. However, the shortcomings of the self-fitting approaches are prominent in two aspects.
+First, as anticipated from Section 3.1, the methods failed with other pretrained models than what
+was proposed, even though each is generally applicable to such a common architecture. Second, the
+self-fitting models still underperformed compared to the standalone model (ECAPA-TDNN), even on
+the dataset where pretraining was conducted. In contrast, our proposal showed stability regardless of
+the pretraining type and further improved the performance by using multilayered features.
+As shown in Table 3, the same comparisons were conducted using datasets representing more natural
+speech environments. The standalone models required substantially more training resources to
+converge from recording environments with proactive background noise. On the other hand, despite
+3Codes are available at https://github.com/sadPororo/Unipool-SV/
+9
+Table 3: Comparison of utterances in natural environments.
+Type
+ASV model
+Pre. model
+VoxCeleb1
+VoxCeleb2
+Steps (K)
+EER∗(%)
+EER (%)
+minDCF (10-3)
+Steps (K)
+EER∗(%)
+EER (%)
+minDCF (10-3)
+Standalone
+SincNet [61]
+-
+300
+25.79 ±0.97
+25.23 ±1.38
+9.96 ±0.04
+100
+16.67 ±0.36
+16.48 ±0.38
+9.75 ±0.05
+X-vector [1]
+-
+30
+12.07 ±0.4
+12.08 ±0.39
+7.42 ±0.12
+300
+7.94 ±0.12
+7.97 ±0.14
+4.90 ±0.12
+ECAPA-TDNN [7]
+-
+100
+5.52 ±0.07
+5.28 ±0.06
+4.86 ±0.13
+300
+2.44 ±0.03
+2.34 ±0.04
+1.54 ±0.07
+Self-fitting
+Avg. pool [20]
+Wav2vec 2.0
+10
+7.88 ±0.26
+7.83 ±0.2
+6.21 ±0.04
+100
+4.63 ±0.08
+4.71 ±0.09
+3.22 ±0.13
+HuBERT
+32.81 ±0.2
+33.73 ±0.18
+8.88 ±0.08
+32.72 ±0.27
+31.17 ±0.22
+7.13 ±0.18
+WavLM
+33.01 ±0.21
+33.93 ±0.14
+8.90 ±0.04
+30.11 ±0.44
+29.53 ±0.26
+7.98 ±0.08
+Wav2vec 2.0 (L)
+11.00 ±0.44
+10.89 ±0.42
+6.91 ±0.11
+5.60 ±0.06
+5.62 ±0.08
+4.04 ±0.09
+cls. token [21]
+Wav2vec 2.0
+10
+3.73 ±0.08
+3.69 ±0.06
+3.84 ±0.06
+50
+2.25 ±0.05
+2.27 ±0.06
+1.87 ±0.16
+HuBERT
+22.84 ±1.03
+22.65 ±1.21
+9.91 ±0.09
+15.59 ±0.83
+15.48 ±1.01
+9.33 ±0.04
+WavLM
+20.99 ±1.14
+20.85 ±1.22
+9.89 ±0.05
+9.89 ±0.22
+9.81 ±0.07
+7.28 ±0.09
+Wav2vec 2.0 (L)
+3.96 ±0.39
+3.97 ±0.43
+4.34 ±0.48
+2.50 ±0.3
+2.56 ±0.31
+2.06 ±0.48
+Feature
+Uni. pool (ours)
+Wav2vec 2.0
+10
+2.53 ±0.05
+2.44 ±0.07
+2.43 ±0.34
+50
+2.37 ±0.06
+2.45 ±0.09
+1.75 ±0.1
+Extraction
+HuBERT
+2.42 ±0.05
+2.19 ±0.06
+2.11 ±0.06
+2.13 ±0.05
+2.11 ±0.03
+1.42 ±0.05
+WavLM
+2.05 ±0.07
+1.90 ±0.1
+1.92 ±0.14
+1.99 ±0.04
+2.04 ±0.02
+1.39 ±0.08
+Wav2vec 2.0 (L)
+2.27 ±0.06
+2.12 ±0.04
+2.03 ±0.03
+2.18 ±0.04
+2.22 ±0.04
+1.33 ±0.1
+Figure 5: Comparison within each dataset of respective pretraining model settings with log-scaled
+axes. The square marker plots the performance expectation on multiple seed experiments, while the
+dashed line is the boundary of the same EER∗. The error bars show a 95% confidence interval on
+each axis.
+the difference from the auditory environment used in self-supervised learning, the pre-trained weights
+saved significant computational resources. The cls. token exhibited superiority in the original setup,
+Wav2vec 2.0, and VoxCeleb2. However, the self-fitting methods showed high sensitivities and were
+difficult to apply to pretrained models other than Wav2vec 2.0. Meanwhile, the result of our proposal
+was as steady as before, demonstrating that the benefits of pretraining can be further maximized
+given the context of fewer data resources and a natural speech environment such as VoxCeleb 1.
+10
+Figure 5 offers an intuitive comparison of the EER* metric, segmented by each data and pre-trained
+model setup. According to the result, our method demonstrates stable improvements in leveraging
+pretrained models, on the contrary, self-fitting approaches are volatile for the experimental conditions.
+In addition, we achieve significant improvement beyond the deviations, solid across the experiments.
+To sum up, using pre-trained models could expect better performance and an economical training
+budget than training a standalone ASV model from scratch. However, we verified that the results
+can be inconsistent depending on how to take advantage of such models. In particular, self-fitting
+approaches turned out to be highly dependent on the type of pre-training and exhibit instability to the
+variation of audio environments, even to the change of model size. We accuse the method-dependency
+on the specific layer for producing speaker embedding for the volatility. On the other side, utilizing
+multi-layer outputs showed powerful stability in gaining performance improvement in utilizing
+pretrained models, as evidenced by several experimental variations. Consequently, we argue to
+leverage pretrained models as a feature extractor and aggregate their multi-layer outputs to represent
+speaker features.
+5.2
+Comparison with Feature Extraction Approaches
+As reviewed in Section 2.3, most feature extraction approaches are based on the weighted summation
+of the multilayer representations presented by SUPERB. Table 4 presents a comparison of the
+proposed method with representative off-the-shelf ASV models trained on top of a layer-wise
+aggregated representation. We measured the number of parameters for the learnable speaker pooling
+component, excluding the frozen feature extraction process. The experimental results confirmed that
+using multilayered features could reliably benefit from pretraining, regardless of the model types. On
+the other hand, the results differ in the degree of pulling out the advantage of pretrained features, in
+terms of the number of parameters used and performance. Our approach achieved the best overall
+performance with the minimum parameter training, particularly for the EER∗metric, in every entry.
+For the reason for such improvements, we underline the operation of interlayer representation to
+capture speaker-relevant information and the advancement of the layer pooling mechanism. The
+strengths of our method were more pronounced when fewer data resources were available.
+Table 4: Comparison with feature extraction approaches.
+Type
+ASV system
+Input feature
+# param.
+VoxCeleb1
+VoxCeleb2
+EER∗(%)
+EER (%)
+minDCF (10-3)
+EER∗(%)
+EER (%)
+minDCF (10-3)
+Standalone
+X-vector [1]
+MFCC-24
+4.5 M
+12.07 ±0.4
+12.08 ±0.39
+7.42 ±0.12
+7.94 ±0.12
+7.97 ±0.14
+4.90 ±0.12
+ECAPA-TDNN [7]
+MFCC-80
+6.2 M
+5.52 ±0.07
+5.28 ±0.06
+4.86 ±0.13
+2.44 ±0.03
+2.34 ±0.04
+1.54 ±0.07
+Feature
+X-vector
+Wav2vec 2.0
+6.4 M
+4.64 ±0.15
+4.65 ±0.19
+4.68 ±0.19
+4.08 ±0.1
+3.95 ±0.09
+3.51 ±0.08
+Extraction
+HuBERT
+4.00 ±0.16
+3.97 ±0.17
+4.23 ±0.11
+3.66 ±0.04
+3.43 ±0.04
+3.05 ±0.11
+WavLM
+4.01 ±0.25
+3.97 ±0.26
+4.28 ±0.03
+3.73 ±0.11
+3.61 ±0.12
+3.25 ±0.08
+Wav2vec 2.0 (L)
+7.0 M
+3.96 ±0.26
+3.98 ±0.24
+4.15 ±0.09
+3.71 ±0.02
+3.54 ±0.03
+3.25 ±0.04
+ECAPA-TDNN
+Wav2vec 2.0
+8.7 M
+3.24 ±0.07
+2.82 ±0.02
+3.46 ±0.29
+2.42 ±0.04
+2.33 ±0.1
+1.57 ±0.12
+HuBERT
+3.18 ±0.06
+2.53 ±0.02
+3.09 ±0.07
+2.24 ±0.06
+2.06 ±0.05
+1.49 ±0.02
+WavLM
+2.55 ±0.01
+2.15 ±0.01
+2.57 ±0.28
+2.07 ±0.04
+2.05 ±0.02
+1.37 ±0.06
+Wav2vec 2.0 (L)
+9.4 M
+3.05 ±0.03
+2.49 ±0.04
+3.37 ±0.19
+2.31 ±0.11
+2.23 ±0.16
+1.37 ±0.07
+Uni. Pool (ours)
+Wav2vec 2.0
+2.9 M
+2.53 ±0.05
+2.44 ±0.07
+2.43 ±0.34
+2.37 ±0.06
+2.45 ±0.09
+1.75 ±0.1
+HuBERT
+2.42 ±0.05
+2.19 ±0.06
+2.11 ±0.06
+2.13 ±0.05
+2.11 ±0.03
+1.42 ±0.05
+WavLM
+2.05 ±0.07
+1.90 ±0.1
+1.92 ±0.14
+1.99 ±0.04
+2.04 ±0.02
+1.39 ±0.08
+Wav2vec 2.0 (L)
+3.0 M
+2.27 ±0.06
+2.12 ±0.04
+2.03 ±0.03
+2.18 ±0.04
+2.22 ±0.04
+1.33 ±0.1
+In addition, we analyzed the temporal cost-efficiency of these achievements. Figure 6 presents the
+EER performance obtained from each comparison and the corresponding consumption of temporal
+resources. The training and inference times were recorded on the same system, using an AMD EPYC
+7763 CPU with an NVIDIA RTX A6000 GPU. In general, leveraging pretrained representations
+reduced the training cost, especially for larger datasets. Among those taking advantage of pretrained
+networks, our method guaranteed approximately twice as improved performance as the X-vector
+backend while achieving twice as fast speed as ECAPA-TDNN. Achieving the lowest EER and
+performing faster inference than the vanilla ECAPA-TDNN are encouraging, despite the on-the-fly
+feature extraction, which is disadvantageous for the inference speed.
+11
+Figure 6: Efficacy comparison among ASV systems given each input feature. As indicated by the
+log-scaled axis, the EER scores correspond to Table 4. The markers denote the input feature types,
+while the BASE type takes the mean of the scores using each of three pretrained features, ranging in
+error bars. Every result includes the time for on-the-fly feature extraction.
+5.3
+Ablation Study
+The preceding experimental results demonstrated advancement through direct training on the mul-
+tilayered output of pretrained models, rather than linearly combining layer-wise representations.
+Accordingly, our method contains interlayer operations such as the layer pooling procedure, which
+off-the-shelf ASV approaches do not incorporate. Table 5 presents the results of the ablation experi-
+ments for such operations. Two types of ablation components were considered: the layer/frame-level
+processing network (L/F-network) and layer pooling (L-pool) strategy. We established a baseline
+with the most fundamental form for aggregating layer-level features, namely SUPERB without the
+L/F-network. Subsequently, we combined the proposed method step by step and determined the
+changes in the EER∗and EER performance. We report both the absolute and relative performances,
+where the relative score is shown in percentile and enlarged for intuitive comparison. The relative
+measurement was calculated as (δB −δA)/δB, where δB is the absolute score of the baseline and δA
+is the comparison entry.
+Table 5: Ablation experiments. Absolute scores are reported on the left while relative measures are
+on the right with percentile notation.
+Input feature
+Ablation
+VCTK
+LibriSpeech
+VoxCeleb 1
+VoxCeleb 2
+L-pool
+L/F-network
+EER∗
+EER
+EER∗
+EER
+EER∗
+EER
+EER∗
+EER
+Wav2vec 2.0
+SUPERB
+-
+6.02
+5.89
+1.92
+1.48
+4.65
+4.38
+4.05
+4.00
+AttnVAD+D2Block
+3.84 36%
+3.93 33%
+1.64 15%
+1.32 11%
+3.47 25%
+3.00 32%
+2.63 35%
+2.45 39%
+MCA
+-
+3.90 35%
+3.96 33%
+1.57 18%
+1.28 13%
+2.59 44%
+2.48 43%
+2.56 37%
+2.59 35%
+D2Block
+3.93 35%
+3.87 34%
+1.50 22%
+1.21 18%
+2.67 43%
+2.50 43%
+2.38 41%
+2.35 41%
+AttnVAD+D2Block
+3.74 38%
+3.77 36%
+1.57 18%
+1.20 19%
+2.53 46%
+2.44 44%
+2.37 42%
+2.45 39%
+HuBERT
+SUPERB
+-
+6.77
+6.41
+1.75
+1.60
+4.25
+3.84
+3.70
+3.66
+AttnVAD+D2Block
+4.51 33%
+4.62 28%
+1.80 -3%
+1.58 2%
+3.48 18%
+2.72 29%
+2.44 34%
+2.25 38%
+MCA
+-
+4.91 27%
+4.95 23%
+1.55 12%
+1.29 20%
+2.58 39%
+2.28 41%
+2.33 37%
+2.39 35%
+D2Block
+4.24 37%
+4.06 37%
+1.40 20%
+1.10 31%
+2.56 40%
+2.17 43%
+2.15 42%
+2.13 42%
+AttnVAD+D2Block
+4.22 38%
+4.27 33%
+1.51 14%
+1.18 26%
+2.42 43%
+2.19 43%
+2.13 43%
+2.11 42%
+WavLM
+SUPERB
+-
+5.22
+5.10
+1.88
+1.54
+3.64
+3.25
+3.41
+3.38
+AttnVAD+D2Block
+4.13 21%
+4.09 20%
+1.80 4%
+1.49 3%
+2.51 31%
+2.12 35%
+2.19 36%
+2.08 38%
+MCA
+-
+4.19 20%
+4.12 19%
+1.66 12%
+1.34 13%
+2.08 43%
+1.96 40%
+2.26 34%
+2.31 32%
+D2Block
+3.86 26%
+3.79 26%
+1.71 9%
+1.29 16%
+2.06 44%
+1.88 42%
+2.07 39%
+2.10 38%
+AttnVAD+D2Block
+3.84 26%
+3.68 28%
+1.78 5%
+1.48 4%
+2.05 44%
+1.90 42%
+1.99 42%
+2.04 40%
+12
+Notable improvements are observed from data environments lacking training resources or varying
+auditorial circumstances from what pretrained. Both types of layer-involving operations aided in
+lowering the verification error rates overall, and the best is achieved when both are applied in most
+cases. Considering the cases that applied L/F-network and MCA pooling each independently, the
+preeminence of contributions varies depending on the datasets. However, we could presume that
+MCA carries a dominant role, taking into account improvements from LibriSpeech where the baseline
+records the lowest error rates due to the pretraining.
+6
+Discussion
+This section discusses the limitations of this study and presents directions for future research. We
+introduced a novel approach for extracting speaker discriminative embeddings that is universally
+applicable to diverse pretrained models. Accordingly, we verified the superiority of this methodology
+in diverse training environments. However, our setups differed from those of other studies aimed at
+state-of-the-art performance on benchmark evaluation protocols.
+The major distinction is the pretrained models. As mentioned in Section 4.3, we used models that were
+pretrained on the same data while fixing the weights during the downstream task training. Therefore,
+we corroborated the impact of changes in the representation extraction approaches, excluding other
+external factors. In contrast, those who aim for high performance adopt front-end models that are
+pretrained on several large-scale datasets while considering budget-free fine-tuning. In addition, noise
+and room impulse response datasets with data augmentation were adopted, and score calibration
+techniques were utilized to push the performance limits.
+The proposed backend pooling structure for multilayered outputs from pretraining was shown to be
+economical as well as to improve the performance compared to existing backend approaches. As the
+method is universally applicable to broad pretraining architectures, we believe that it could further
+boost state-of-the-art performance along with previously introduced techniques in future studies.
+7
+Conclusion
+Recent advances in speaker verification research have highlighted the exploitation of pretrained
+models. As demonstrated in diverse data-driven domains, such approaches can benefit from cost-
+efficient training and improved performance. This study has introduced a novel method for extracting
+speaker-unique representations from the multilayered architectures of pretrained models.
+We presented an analysis and offered insight into how existing approaches deal with pretrained
+models. Consequently, we argued for capturing speaker representations hidden in the layer-frame-
+level output from the pretrained model and advancing layer-level pooling techniques. We designed
+comparative experiments using multiple data environments and pretraining model types to validate
+the universality of the proposed pooling architecture. The experimental results demonstrated that our
+method can reliably leverage pretraining in various setups and surpass existing approaches in terms
+of performance and efficacy. The ablation study verified that both the layer-frame-level processing
+network and layer attention pooling strategy contribute significantly to improving performance. In
+the future, we will discuss incorporating various training techniques for state-of-the-art recordings to
+transcend the limits of speaker verification performance further.
+Acknowledgments and Disclosure of Funding
+This research was supported by the BK21 FOUR funded by the Ministry of Education of Korea and
+National Research Foundation of Korea. This research was also supported by Korea University Grant
+(K2403371).
+References
+[1] David Snyder, Daniel Garcia-Romero, Gregory Sell, Daniel Povey, and Sanjeev Khudanpur.
+X-vectors: Robust DNN embeddings for speaker recognition. In Proc. IEEE International
+Conference on Acoustics, Speech, and Signal Processing, pages 5329–5333, 2018.
+13
+[2] Arsha Nagrani, Joon Son Chung, and Andrew Zisserman. VoxCeleb: A large-scale speaker
+identification dataset. In Proc. Interspeech, pages 2616–2620, 2017.
+[3] Joon Son Chung, Arsha Nagrani, and Andrew Zisserman. VoxCeleb2: Deep speaker recognition.
+In Proc. Interspeech, pages 1086–1090, 2018.
+[4] David Snyder, Daniel Garcia-Romero, Gregory Sell, Alan McCree, Daniel Povey, and Sanjeev
+Khudanpur. Speaker recognition for multi-speaker conversations using x-vectors. In Proc. IEEE
+International Conference on Acoustics, Speech, and Signal Processing, pages 5796–5800, 2019.
+[5] Ya-Qi Yu and Wu-Jun Li. Densely connected time delay neural network for speaker verification.
+In Proc. Interspeech, pages 921–925, 2020.
+[6] Ruiteng Zhang, Jianguo Wei, Wenhuan Lu, Longbiao Wang, Meng Liu, Lin Zhang, Jiayu Jin,
+and Junhai Xu. Aret: Aggregated residual extended time-delay neural networks for speaker
+verification. In Proc. Interspeech, pages 946–950, 2020.
+[7] Brecht Desplanques, Jenthe Thienpondt, and Kris Demuynck. ECAPA-TDNN: Emphasized
+channel attention, propagation and aggregation in TDNN based speaker verification. In Proc.
+Interspeech, pages 3830–3834, 2020.
+[8] Koji Okabe, Takafumi Koshinaka, and Koichi Shinoda. Attentive statistics pooling for deep
+speaker embedding. In Proc. Interspeech, pages 2252–2256, 2018.
+[9] Yingke Zhu, Tom Ko, David Snyder, Brian Mak, and Daniel Povey. Self-attentive speaker
+embeddings for text-independent speaker verification. In Proc. Interspeech, pages 3573–3577,
+2018.
+[10] Chunlei Zhang and Kazuhito Koishida. End-to-end text-independent speaker verification with
+triplet loss on short utterances. In Proc. Interspeech, pages 1487–1491, 2017.
+[11] Chunlei Zhang, Kazuhito Koishida, and John HL Hansen. Text-independent speaker verification
+based on triplet convolutional neural network embeddings. IEEE/ACM Transactions on Audio,
+Speech, and Language Processing, 26(9):1633–1644, 2018.
+[12] Feng Wang, Jian Cheng, Weiyang Liu, and Haijun Liu. Additive margin softmax for face
+verification. IEEE Signal Processing Letters, 25(7):926–930, 2018.
+[13] Jiankang Deng, Jia Guo, Niannan Xue, and Stefanos Zafeiriou. Arcface: Additive angular
+margin loss for deep face recognition. In Proc. IEEE/CVF Conference on Computer Vision and
+Pattern Recognition, pages 4690–4699, 2019.
+[14] Jacob Devlin, Ming-Wei Chang, Kenton Lee, and Kristina Toutanova. Bert: Pre-training
+of deep bidirectional transformers for language understanding. In Proc. Conference of the
+North American Chapter of the Association for Computational Linguistics: Human Language
+Technologies Vol. 1 (Long and Short Papers), pages 4171–4186. Association for Computational
+Linguistics, 2019.
+[15] Alec Radford, Karthik Narasimhan, Tim Salimans, Ilya Sutskever, et al. Improving language
+understanding by generative pre-training. 2018.
+[16] Steffen Schneider, Alexei Baevski, Ronan Collobert, and Michael Auli. Wav2vec: Unsupervised
+pre-training for speech recognition. In Proc. Interspeech, pages 3465–3469, 2019.
+[17] Alexei Baevski, Yuhao Zhou, Abdelrahman Mohamed, and Michael Auli. Wav2vec 2.0:
+A framework for self-supervised learning of speech representations. Advances in Neural
+Information Processing Systems, 33:12449–12460, 2020.
+[18] Wei-Ning Hsu, Benjamin Bolte, Yao-Hung Hubert Tsai, Kushal Lakhotia, Ruslan Salakhutdinov,
+and Abdelrahman Mohamed.
+Hubert: Self-supervised speech representation learning by
+masked prediction of hidden units. IEEE/ACM Transactions on Audio, Speech, and Language
+Processing, 29:3451–3460, 2021.
+[19] Sanyuan Chen, Chengyi Wang, Zhengyang Chen, Yu Wu, Shujie Liu, Zhuo Chen, Jinyu Li,
+Naoyuki Kanda, Takuya Yoshioka, Xiong Xiao, et al. Wavlm: Large-scale self-supervised pre-
+training for full stack speech processing. IEEE Journal of Selected Topics in Signal Processing,
+16(6):1505–1518, 2022.
+[20] Zhiyun Fan, Meng Li, Shiyu Zhou, and Bo Xu. Exploring wav2vec 2.0 on speaker verification
+and language identification. In Proc. Interspeech, pages 1509–1513, 2021.
+14
+[21] Nik Vaessen and David A. van Leeuwen. Fine-tuning wav2vec2 for speaker recognition. In Proc.
+IEEE International Conference on Acoustics, Speech, and Signal Processing, pages 7967–7971,
+2022.
+[22] Hemlata Tak, Massimiliano Todisco, Xin Wang, Jee-weon Jung, Junichi Yamagishi, and
+Nicholas W. D. Evans. Automatic speaker verification spoofing and deepfake detection using
+wav2vec 2.0 and data augmentation. In Odyssey 2022: The Speaker and Language Recognition
+Workshop, pages 112–119, 2022.
+[23] Sergey Novoselov, Galina Lavrentyeva, Anastasia Avdeeva, Vladimir Volokhov, Nikita Khmelev,
+Artem Akulov, and Polina Leonteva. On the robustness of wav2vec 2.0 based speaker recognition
+systems. In Proc. Interspeech, pages 3177–3181, 2023.
+[24] Shu wen Yang, Po-Han Chi, Yung-Sung Chuang, Cheng-I Jeff Lai, Kushal Lakhotia, Yist Y.
+Lin, Andy T. Liu, Jiatong Shi, Xuankai Chang, Guan-Ting Lin, Tzu-Hsien Huang, Wei-Cheng
+Tseng, Ko tik Lee, Da-Rong Liu, Zili Huang, Shuyan Dong, Shang-Wen Li, Shinji Watanabe,
+Abdelrahman Mohamed, and Hung yi Lee. SUPERB: Speech processing universal performance
+benchmark. In Proc. Interspeech, pages 1194–1198, 2021.
+[25] Zhengyang Chen, Sanyuan Chen, Yu Wu, Yao Qian, Chengyi Wang, Shujie Liu, Yanmin Qian,
+and Michael Zeng. Large-scale self-supervised speech representation learning for automatic
+speaker verification. In Proc. IEEE International Conference on Acoustics, Speech, and Signal
+Processing, pages 6147–6151. IEEE, 2022.
+[26] Junyi Peng, Oldˇrich Plchot, Themos Stafylakis, Ladislav Mosner, Lukáš Burget, and
+Jan "Honza" ˇCernocký. Improving speaker verification with self-pretrained transformer models.
+In Proc. Interspeech, pages 5361–5365, 2023.
+[27] Junyi Peng, Oldˇrich Plchot, Themos Stafylakis, Ladislav Mošner, Lukáš Burget, and Jan
+ˇCernock`y. An attention-based backend allowing efficient fine-tuning of transformer models for
+speaker verification. In 2022 IEEE Spoken Language Technology Workshop, pages 555–562,
+2023.
+[28] Richard C Rose and Douglas A Reynolds. Text independent speaker identification using
+automatic acoustic segmentation. In Proc. IEEE International Conference on Acoustics, Speech,
+and Signal Processing, pages 293–296. IEEE, 1990.
+[29] Douglas Alan Reynolds. A Gaussian mixture modeling approach to text-independent speaker
+identification. Georgia Institute of Technology, 1992.
+[30] Douglas A Reynolds and Richard C Rose. Robust text-independent speaker identification
+using gaussian mixture speaker models. IEEE Transactions on Speech and Audio Processing,
+3(1):72–83, 1995.
+[31] Douglas A Reynolds. Comparison of background normalization methods for text-independent
+speaker verification. In Eurospeech, pages 963–966, 1997.
+[32] Douglas A Reynolds, Thomas F Quatieri, and Robert B Dunn. Speaker verification using
+adapted gaussian mixture models. Digital signal processing, 10(1-3):19–41, 2000.
+[33] Patrick Kenny, Gilles Boulianne, and Pierre Dumouchel. Eigenvoice modeling with sparse
+training data. IEEE Transactions on Speech and Audio Processing, 13(3):345–354, 2005.
+[34] William M Campbell, Douglas E Sturim, and Douglas A Reynolds. Support vector machines
+using gmm supervectors for speaker verification. IEEE Signal Process. Lett., 13(5):308–311,
+2006.
+[35] Patrick Kenny, Gilles Boulianne, Pierre Ouellet, and Pierre Dumouchel. Joint factor analy-
+sis versus eigenchannels in speaker recognition. IEEE Transactions on Audio, Speech, and
+Language Processing, 15(4):1435–1447, 2007.
+[36] Najim Dehak, Patrick J Kenny, Réda Dehak, Pierre Dumouchel, and Pierre Ouellet. Front-end
+factor analysis for speaker verification. IEEE Transactions on Audio, Speech, and Language
+Processing, 19(4):788–798, 2010.
+[37] Simon JD Prince and James H Elder. Probabilistic linear discriminant analysis for inferences
+about identity. In Proc. IEEE International Conference on Computer Vision, pages 1–8, 2007.
+[38] Patrick Kenny. Bayesian speaker verification with, heavy tailed priors. In Odyssey 2010: The
+Speaker and Language Recognition Workshop, page paper 14, 2010.
+15
+[39] Daniel Garcia-Romero and Carol Y Espy-Wilson. Analysis of i-vector length normalization in
+speaker recognition systems. In Proc. Interspeech, pages 249–252, 2011.
+[40] Daniel Garcia-Romero, Xinhui Zhou, and Carol Y Espy-Wilson. Multicondition training of
+gaussian plda models in i-vector space for noise and reverberation robust speaker recognition.
+In Proc. IEEE International Conference on Acoustics, Speech, and Signal Processing, pages
+4257–4260, 2012.
+[41] Yun Lei, Nicolas Scheffer, Luciana Ferrer, and Mitchell McLaren. A novel scheme for speaker
+recognition using a phonetically-aware deep neural network. In Proc. IEEE International
+Conference on Acoustics, Speech, and Signal Processing, pages 1695–1699, 2014.
+[42] Patrick Kenny, Themos Stafylakis, Pierre Ouellet, Vishwa Gupta, and Md Jahangir Alam. Deep
+neural networks for extracting baum-welch statistics for speaker recognition. In Odyssey 2014:
+The Speaker and Language Recognition Workshop, pages 293–298, 2014.
+[43] Mitchell McLaren, Yun Lei, and Luciana Ferrer. Advances in deep neural network approaches
+to speaker recognition. In Proc. IEEE International Conference on Acoustics, Speech, and
+Signal Processing, pages 4814–4818, 2015.
+[44] Ehsan Variani, Xin Lei, Erik McDermott, Ignacio Lopez Moreno, and Javier Gonzalez-
+Dominguez. Deep neural networks for small footprint text-dependent speaker verification.
+In Proc. IEEE International Conference on Acoustics, Speech, and Signal Processing, pages
+4052–4056, 2014.
+[45] David Snyder, Daniel Garcia-Romero, Daniel Povey, and Sanjeev Khudanpur. Deep neural
+network embeddings for text-independent speaker verification. In Proc. Interspeech, pages
+999–1003, 2017.
+[46] Ken Chatfield, Karen Simonyan, Andrea Vedaldi, and Andrew Zisserman. Return of the devil in
+the details: Delving deep into convolutional nets. In Proc. British Machine Vision Conference.
+BMVA Press, 2014.
+[47] Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun. Deep residual learning for image
+recognition. In Proc. IEEE Conference on Computer Vision and Pattern Recognition, pages
+770–778, 2016.
+[48] Christian Szegedy, Sergey Ioffe, Vincent Vanhoucke, and Alexander Alemi. Inception-v4,
+inception-resnet and the impact of residual connections on learning. In Proc. AAAI Conference
+on Artificial Intelligence, volume 31, 2017.
+[49] A. Waibel, T. Hanazawa, G. Hinton, K. Shikano, and K.J. Lang. Phoneme recognition using
+time-delay neural networks. IEEE Transactions on Acoustics, Speech, and Signal Processing,
+37(3):328–339, 1989.
+[50] Gao Huang, Zhuang Liu, Laurens Van Der Maaten, and Kilian Q Weinberger. Densely connected
+convolutional networks. In Proc. IEEE Conference on Computer Vision and Pattern Recognition,
+pages 4700–4708, 2017.
+[51] Saining Xie, Ross Girshick, Piotr Dollár, Zhuowen Tu, and Kaiming He. Aggregated residual
+transformations for deep neural networks. In Proc. IEEE Conference on Computer Vision and
+Pattern Recognition, pages 1492–1500, 2017.
+[52] Shang-Hua Gao, Ming-Ming Cheng, Kai Zhao, Xin-Yu Zhang, Ming-Hsuan Yang, and Philip
+Torr. Res2net: A new multi-scale backbone architecture. IEEE Transactions on Pattern Analysis
+and Machine Intelligence, 43(2):652–662, 2019.
+[53] Jie Hu, Li Shen, and Gang Sun.
+Squeeze-and-excitation networks.
+In Proc. IEEE/CVF
+Conference on Computer Vision and Pattern Recognition, pages 7132–7141, 2018.
+[54] Kaiming He, Xiangyu Zhang, Shaoqing Ren, and Jian Sun. Spatial pyramid pooling in deep
+convolutional networks for visual recognition. IEEE Transactions on Pattern Analysis and
+Machine Intelligence, 37(9):1904–1916, 2015.
+[55] Aäron van den Oord, Yazhe Li, and Oriol Vinyals. Representation learning with contrastive
+predictive coding. CoRR, 2018.
+[56] Mirco Ravanelli and Yoshua Bengio. Learning speaker representations with mutual information.
+In Proc. Interspeech, pages 1153–1157, 2019.
+16
+[57] Ting Chen, Simon Kornblith, Mohammad Norouzi, and Geoffrey Hinton. A simple framework
+for contrastive learning of visual representations. In Proc. International Conference on Machine
+Learning, pages 1597–1607. PMLR, 2020.
+[58] Kaiming He, Haoqi Fan, Yuxin Wu, Saining Xie, and Ross Girshick. Momentum contrast
+for unsupervised visual representation learning. In Proc. IEEE/CVF Conference on Computer
+Vision and Pattern Recognition, pages 9729–9738, 2020.
+[59] Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez,
+Łukasz Kaiser, and Illia Polosukhin. Attention is all you need. Advances in Neural Information
+Processing Systems, 30, 2017.
+[60] Alexei Baevski, Steffen Schneider, and Michael Auli. vq-wav2vec: Self-supervised learning of
+discrete speech representations. In Proc. International Conference on Learning Representations,
+2020.
+[61] Mirco Ravanelli and Yoshua Bengio. Speaker recognition from raw waveform with sincnet. In
+2018 IEEE Spoken Language Technology Workshop, pages 1021–1028, 2018.
+[62] Junichi Yamagishi, Christophe Veaux, Kirsten MacDonald, et al. Cstr vctk corpus: English
+multi-speaker corpus for cstr voice cloning toolkit (version 0.92). University of Edinburgh. The
+Centre for Speech Technology Research, pages 271–350, 2019.
+[63] Naoya Takahashi and Yuki Mitsufuji. Densely connected multi-dilated convolutional networks
+for dense prediction tasks. In Proc. IEEE/CVF Conference on Computer Vision and Pattern
+Recognition, pages 993–1002, 2021.
+[64] Jin Sob Kim, Hyun Joon Park, Wooseok Shin, Dongil Park, and Sung Won Han.
+Way:
+Estimation of vessel destination in worldwide AIS trajectory. IEEE Transactions on Aerospace
+and Electronic Systems, 59(5):5961–5977, 2023.
+[65] Vassil Panayotov, Guoguo Chen, Daniel Povey, and Sanjeev Khudanpur. Librispeech: an
+asr corpus based on public domain audio books. In Proc. IEEE International Conference on
+Acoustics, Speech, and Signal Processing, pages 5206–5210, 2015.
+[66] George R Doddington, Mark A Przybocki, Alvin F Martin, and Douglas A Reynolds. The nist
+speaker recognition evaluation–overview, methodology, systems, results, perspective. Speech
+Communication, 31(2-3):225–254, 2000.
+[67] Daniel S. Park, William Chan, Yu Zhang, Chung-Cheng Chiu, Barret Zoph, Ekin D. Cubuk,
+and Quoc V. Le. SpecAugment: A Simple Data Augmentation Method for Automatic Speech
+Recognition. In Proc. Interspeech, pages 2613–2617, 2019.
+[68] Diederik P. Kingma and Jimmy Ba. Adam: A method for stochastic optimization. In Proc.
+International Conference on Learning Representations, 2015.
+[69] Leslie N Smith and Nicholay Topin. Super-convergence: Very fast training of neural networks
+using large learning rates. In Proc. Artificial Intelligence and Machine Learning for Multi-
+Domain Operations Applications, volume 11006, pages 369–386. SPIE, 2019.
+17

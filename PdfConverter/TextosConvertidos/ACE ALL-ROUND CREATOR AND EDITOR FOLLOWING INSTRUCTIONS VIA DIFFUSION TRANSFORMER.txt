@@ -1,0 +1,6874 @@
+Technical Report
+: ALL-ROUND CREATOR AND EDITOR FOLLOW-
+ING INSTRUCTIONS VIA DIFFUSION TRANSFORMER
+Zhen Han∗
+Zeyinzi Jiang∗
+Yulin Pan∗
+Jingfeng Zhang∗
+Chaojie Mao∗†
+Chenwei Xie
+Yu Liu
+Jingren Zhou
+Tongyi Lab
+ABSTRACT
+Diffusion models have emerged as a powerful generative technology and have
+been found to be applicable in various scenarios. Most existing foundational dif-
+fusion models are primarily designed for text-guided visual generation and do not
+support multi-modal conditions, which are essential for many visual editing tasks.
+This limitation prevents these foundational diffusion models from serving as a
+unified model in the field of visual generation, like GPT-4 in the natural language
+processing field. In this work, we propose ACE, an All-round Creator and Editor,
+which achieves comparable performance compared to those expert models in a
+wide range of visual generation tasks. To achieve this goal, we first introduce
+a unified condition format termed Long-context Condition Unit (LCU), and pro-
+pose a novel Transformer-based diffusion model that uses LCU as input, aiming
+for joint training across various generation and editing tasks. Furthermore, we
+propose an efficient data collection approach to address the issue of the absence of
+available training data. It involves acquiring pairwise images with synthesis-based
+or clustering-based pipelines and supplying these pairs with accurate textual in-
+structions by leveraging a fine-tuned multi-modal large language model. To com-
+prehensively evaluate the performance of our model, we establish a benchmark
+of manually annotated pairs data across a variety of visual generation tasks. The
+extensive experimental results demonstrate the superiority of our model in visual
+generation fields. Thanks to the all-in-one capabilities of our model, we can easily
+build a multi-modal chat system that responds to any interactive request for image
+creation using a single model to serve as the backend, avoiding the cumbersome
+pipeline typically employed in visual agents. Code and models will be available
+on the project page: https://ali-vilab.github.io/ace-page/.
+∗Equal Contribution. Order is determined by random dice rolling.
+† Project leader and corresponding author.
+1
+arXiv:2410.00086v2  [cs.CV]  5 Nov 2024
+Table of Contents for ACE
+1
+Introduction
+3
+2
+All-Round Creator and Editor
+4
+2.1
+Problem Definition . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+5
+2.1.1
+Tasks . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+5
+2.1.2
+Input Paradigm . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+6
+2.2
+Architecture . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+6
+3
+Datasets
+7
+3.1
+Pair Data Collection . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+7
+3.2
+Instructions . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+8
+4
+Experiments
+9
+4.1
+Benchmarks and Metrics . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+9
+4.2
+Qualitative Evaluation
+. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+11
+4.3
+Quantitative Evaluation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+11
+5
+Conclusion
+12
+A Related Work
+19
+B
+Datasets Detail
+19
+B.1
+Text-guided Generation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+19
+B.2
+Low-level Visual Analysis
+. . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+19
+B.3
+Controllable Generation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+21
+B.4
+Semantic Editing . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+21
+B.4.1
+Facial Editing . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+22
+B.4.2
+Style Editing . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+23
+B.4.3
+General Editing . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+23
+B.5
+Element Editing . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+24
+B.5.1
+Text Editing . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+25
+B.5.2
+Object Editing
+. . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+26
+B.6
+Repainting . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+27
+B.6.1
+Unconditional Inpainting . . . . . . . . . . . . . . . . . . . . . . . . . . .
+27
+B.6.2
+Text-guided Inpainting . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+27
+B.6.3
+Outpainting . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+28
+B.7
+Layer Editing . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+28
+B.8
+Reference Generation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+29
+B.8.1
+Multi-reference Generation . . . . . . . . . . . . . . . . . . . . . . . . . .
+30
+B.8.2
+Reference-guided Editing
+. . . . . . . . . . . . . . . . . . . . . . . . . .
+30
+B.9
+Multi-turn and Long-context Generation . . . . . . . . . . . . . . . . . . . . . . .
+30
+C Benchmark Details
+31
+D Implementation Details
+32
+E
+More Experiments
+32
+F
+Application
+35
+F.1
+Workflow Distillation . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+35
+F.2
+Chat Bot . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . .
+35
+G More Visualization
+36
+H Discussion
+36
+2
+Technical Report
+General
+Object+Face
+Repaint
+Scene
+Style
+Face
+Outpaint
+Workflow
+Layer
+Text
+Scene
+General
+Scribble
+Depth
+Gray
+Mosaic
+Multi-Control
+General
+Canny
+Control
+Figure 1: Multi-turn image editing results of ACE. ACE supports a wide range of image gener-
+ation and editing tasks through natural language instructions, allowing complex and precise editing
+requests to be easily accomplished through multi-turn interactions.
+1
+INTRODUCTION
+In recent years, foundational generative models have made groundbreaking progress in natural lan-
+guage processing (NLP) (Anil et al., 2023; Anthropic, 2023a;b; Ouyang et al., 2022). Conversational
+language models like ChatGPT (Brown et al., 2020; OpenAI, 2023b) offer a unified framework for
+addressing various NLP tasks through a prompt-guided approach. By employing a unified input-
+output structure, these models can achieve dynamic multi-turn interactions with users. Furthermore,
+by harnessing the knowledge of historical dialogues (Anthropic, 2024; OpenAI, 2024), they possess
+the capacity to comprehend intricate queries with greater nuance and depth. However, such unified
+architecture has not been fully explored in visual generation field. Existing foundational models
+of visual generation typically create images or videos from pure text, which is not compatible with
+most visual generation tasks, such as controllable image generation (Zhang et al., 2023b; Jiang et al.,
+2024) or image editing (Brooks et al., 2023). Thereby, specific visual generation tasks still require
+tailored tuning based on these foundational models, which is inflexible and inefficient. For this
+reason, the visual generative model has not yet become a powerful and unified productivity tool in
+various application scenarios like large language models (LLMs) (Abdin et al., 2024; Dubey et al.,
+2024; Bai et al., 2023; Yang et al., 2024).
+3
+Technical Report
+One major challenge of building an all-in-one visual generation model lies in the diversity of multi-
+modal input formats and the variety of supported generation tasks. To address this, we design a
+unified framework using a Diffusion Transformer generation model that accommodates a wide range
+of inputs and tasks, empowering it to serve as an All-round Creator and Editor, which we refer to as
+ACE. First, we analyze the condition inputs of most visual generation tasks, and define Condition
+Unit (CU), which establishes a unified input paradigm consisting of core elements such as image,
+mask, and textual instruction. Second, for those CUs containing multiple images, we introduce
+Image Indicator Embedding to ensure the order of the images mentioned in instruction matches
+image sequence within the CUs. Besides, we imply 3d position embedding instead of 2d spatial-level
+position embedding on the image sequence, allowing for better exploring the relationships among
+conditional images. Third, we concatenate the current CU with historical information from previous
+generation rounds to construct the Long-context Condition Unit (LCU). By leveraging this chain of
+generation information, we expect the model to better understand the user’s request and create the
+desired image. As depicted in Fig. 1, ACE supports a range of generating and editing capabilities,
+allowing it to accomplish complex and precise generation tasks through multi-turn instructions.
+To address the issue of the absence of available training data for various visual generation tasks,
+we establish a meticulous data collection and processing workflow to collect high-quality structured
+CU data at a scale of 0.7 billion. For visual conditions, we collect image pairs by synthesizing
+images from source images or by pairing images from large-scale databases. The former utilizes
+powerful open-source models to edit images to meet specific requirements, such as changing styles
+(Han et al., 2024) or adding objects (Pan et al., 2024), while the latter involves clustering and
+grouping images from extensive databases to provide sufficient real data, thereby minimizing the
+risk of overfitting to the synthesized data distribution. For textual instructions, we first manually
+construct instructions for diverse tasks by building templates or requesting LLMs, then optimize the
+instruction construction process by training an end-to-end instruction-labeling multi-modal large
+language model (MLLM) (Chen et al., 2024), thereby enriching the diversity of the text instructions.
+Our ACE provides more comprehensive coverage of tasks on a single model compared to previ-
+ous approaches. Therefore, to thoroughly evaluate the performance of our generation model, we
+construct an evaluation benchmark that encompasses the main tasks. This benchmark incorporates
+inputs sourced from both the real world and model-generated data, supporting global and local edit-
+ing tasks. It is larger in scale and broader in scope compared to previous benchmarks (Sheynin
+et al., 2024; Zhang et al., 2023a). We conduct a user study to subjectively assess the quality of
+images generated by our method and the adherence to instructions, revealing that our approach gen-
+erally aligns more closely with human perception across the majority of tasks. We summarize our
+main contributions as follows:
+• We propose ACE, a unified foundational model framework that supports a wide range of visual
+generation tasks. To our knowledge, this is the most comprehensive diffusion generation model to
+date in terms of task coverage.
+• By defining the CU for unifying multi-modal inputs across different tasks and incorporating long-
+context CU, we introduce historical contextual information into visual generation tasks, paving
+the way for ChatGPT-like dialog systems in visual generation.
+• We design specific data construction pipelines for various tasks to enhance the quality and effi-
+ciency of data collection, and we ensure the richness of multi-modal data through MLLM fine-
+tuning for automated instruction labeling.
+• We establish a more comprehensive evaluation benchmark compared to previous ones, cover-
+ing the most known visual generation tasks. Evaluation results indicate that ACE demonstrates
+notable competitiveness in specialized models while also exhibiting strong generalization capa-
+bilities across a broader range of open tasks.
+2
+ALL-ROUND CREATOR AND EDITOR
+ACE is an image creation and editing model based on the Diffusion Transformer that follows tex-
+tual instructions. It establishes a unified framework that covers a wide range of tasks through the
+definition of standard input paradigm and strategy for aligning multi-modal information. With this
+4
+Technical Report
+A girl with blue 
+hair, glasses, 
+anime style 2D 
+artwork.
+Proceed with the 
+depth extraction 
+of {image}.
+Please utilize the 
+contour {image} to 
+develop a restoration  
+image.
+Convert {image}   cha-
+racters into different 
+style, ensuring the 
+facial characteristics 
+unchange.
+Incorporate the 
+text "who" into 
+{image}.
+Repaint the parts of 
+{image} identified by 
+mask with “a fluffy 
+white cat”
+{image}, {image1}, {image2}, 
+a girl with two pigtails is 
+standing against a light blue 
+background.
+<
+l
+a
+t
+e
+x
+i
+t
+ 
+s
+h
+a
+1
+_
+b
+a
+s
+e
+6
+4
+=
+"
+4
+B
+x
+x
+G
+M
+3
+z
+1
+6
+J
+u
+J
+p
+z
+s
+U
+M
+A
+W
+/
+5
+C
+J
+7
+Y
+8
+=
+"
+>
+A
+A
+A
+D
+E
+3
+i
+c
+j
+V
+H
+L
+a
+t
+t
+A
+F
+D
+1
+W
+0
+j
+Z
+1
+X
+0
+6
+6
+z
+G
+a
+I
+a
+S
+n
+F
+G
+C
+m
+Q
+N
+B
+A
+M
+o
+d
+k
+k
+i
+x
+Q
+X
+/
+A
+h
+4
+X
+C
+P
+J
+E
+3
+e
+I
+L
+A
+l
+p
+F
+G
+K
+E
+P
+i
+N
+/
+0
+l
+1
+3
+I
+d
+u
+u
+Q
+7
+J
+N
+F
+8
+l
+f
+9
+M
+5
+U
+h
+r
+a
+h
+t
+C
+M
+0
+c
++
+b
+c
+e
+8
+7
+M
+n
+e
+v
+F
+g
+U
+y
+V
+b
+V
+9
+V
+r
+I
+X
+F
+B
+w
+8
+f
+L
+T
+2
+u
+P
+n
+n
+6
+7
+P
+m
+L
+2
+v
+J
+K
+L
+4
+2
+y
+x
+B
+d
+d
+P
+w
+q
+i
+5
+N
+B
+z
+U
+x
+H
+I
+U
+H
+S
+V
+V
+I
+E
+4
+j
+B
+P
+h
+T
+r
+1
+A
+9
+L
+3
+j
+X
+R
+3
+v
+n
+4
+g
+k
+l
+V
+H
+Y
+U
+b
+N
+Y
+D
+K
+f
+u
+J
+J
+R
+H
+0
+n
+c
+V
+U
+a
+P
+a
+B
++
+6
+J
+i
+Q
+x
+z
+N
+5
+C
+T
+8
+G
+1
+R
+f
+c
+2
+4
+E
+q
+c
+q
+3
++
+0
+W
+r
+M
+V
+4
+3
+m
+m
+w
+H
+i
+8
+a
+j
+H
+F
+O
+s
+V
+6
+L
+5
+4
+P
+9
+T
+7
+l
+T
+b
+L
+M
+D
+v
+Q
+x
+5
+U
+e
+U
+i
+H
+M
+/
+1
+o
+1
+r
+d
+b
+t
+p
+m
+s
+P
+v
+A
+K
+U
+E
+d
+5
+W
+h
+H
+t
+U
+t
+w
+j
+B
+H
+B
+R
+4
+Y
+p
+B
+E
+I
+o
+w
+g
+F
+c
+p
+P
+Q
+N
+4
+M
+B
+G
+T
+N
+w
+Q
+O
+X
+E
+J
+I
+W
+n
+i
+A
+g
+W
+q
+p
+M
+0
+o
+S
+1
+C
+G
+S
++
+w
+x
+z
+R
+P
+a
+D
+U
+o
+2
+p
+L
+3
+2
+T
+I
+3
+a
+p
+1
+M
+C
++
+h
+N
+S
+M
+r
+w
+i
+T
+U
+R
+5
+C
+W
+F
+9
+G
+j
+P
+x
+z
+D
+h
+r
+9
+m
+/
+e
+u
+f
+H
+U
+d
+5
+v
+R
+6
+p
+V
+e
+U
+2
+I
+V
+P
+h
+P
+7
+L
+9
+0
+8
+8
+3
+9
+1
+u
+h
+a
+F
+I
+2
+y
+Z
+G
+i
+T
+V
+F
+B
+t
+G
+V
++
+e
+X
+L
+p
+l
+5
+F
+X
+1
+z
+9
+k
+t
+V
+i
+h
+x
+i
+4
+j
+Q
+e
+U
+z
+w
+h
+7
+B
+v
+l
+/
+J
+2
+Z
+0
+a
+S
+m
+d
+v
+2
+2
+r
+o
+n
+f
+m
+k
+z
+N
+6
+r
+1
+f
+5
+m
+a
+4
+0
+7
+e
+k
+B
+j
+t
+/
+t
+v
+M
++
+6
+K
+0
+3
+n
+c
+3
+m
+x
+s
+f
+1
++
+s
+7
+7
+s
+t
+V
+L
+W
+M
+U
+a
+3
+l
+A
+/
+3
+2
+E
+H
+e
+2
+i
+j
+S
+9
+5
+f
+c
+I
+0
+b
+f
+L
+f
+O
+r
+K
+/
+W
+u
+X
+X
+x
+M
+9
+W
+q
+l
+J
+q
+X
++
+G
+1
+Y
+3
+3
+4
+A
+0
+A
+K
+s
+K
+g
+=
+=
+<
+/
+l
+a
+t
+e
+x
+i
+t
+>
+CU = {T, V },
+V = {[I1; M 1]}
+<
+l
+a
+t
+e
+x
+i
+t
+ 
+s
+h
+a
+1
+_
+b
+a
+s
+e
+6
+4
+=
+"
+y
+W
+N
++
+n
+i
+/
+t
+N
+w
+y
+K
+L
+G
+U
+A
+6
+E
+W
+I
+8
+P
+0
+Y
+v
+I
+8
+=
+"
+>
+A
+A
+A
+D
+O
+n
+i
+c
+j
+V
+H
+L
+S
+s
+N
+A
+F
+L
+2
+J
+7
+/
+i
+q
+u
+n
+Q
+z
+W
+B
+S
+R
+U
+p
+K
+C
+D
+x
+C
+h
+2
+I
+0
+u
+F
+A
+V
+b
+h
+U
+6
+V
+J
+B
+3
+r
+Y
+J
+q
+E
+Z
+C
+K
+W
+k
+D
+/
+z
+P
+0
+T
+c
+u
+b
+K
+4
+9
+Q
+O
+8
+M
+0
+3
+B
+B
+6
+I
+T
+k
+p
+x
+7
+7
+j
+1
+n
+5
+s
+5
+1
+Q
+o
+/
+H
+w
+j
+S
+f
+N
+H
+1
+k
+d
+G
+x
+8
+Y
+n
+L
+K
+m
+J
+6
+Z
+n
+Z
+s
+v
+L
+C
+w
+2
+4
+i
+C
+J
+X
+F
+Z
+3
+A
+y
++
+I
+L
+h
+w
+7
+Z
+h
+7
+3
+W
+V
+1
+w
+4
+b
+G
+L
+M
+G
+J
+2
+1
+/
+H
+Y
+u
+X
+N
+b
+k
+/
+n
+z
+O
+x
+b
+F
+P
+P
+D
+P
+R
+C
+9
+k
+r
+a
+7
+d
+8
+f
+k
+1
+d
+2
+2
+B
+1
+F
+U
+h
+o
+Q
+7
+r
+c
+D
++
+1
+P
+d
+7
+x
+N
+z
+J
+j
+j
+V
+D
+B
+7
+k
+V
+a
+q
+2
+d
+k
+j
+9
+D
+0
+r
+E
+Q
+a
+N
+C
+s
+R
+Q
+i
+n
+m
+G
+n
+s
+0
+b
+R
+5
+e
+p
+l
+a
+2
+S
+4
+7
+k
+r
+1
+U
+i
+M
+q
+4
+M
+4
+o
+q
+M
+a
+T
+s
+Q
+8
+Y
+A
++
+H
+t
+D
+H
+W
+Y
+t
+m
+B
+m
+V
++
+e
+7
+j
+N
+V
+a
+F
+o
+l
+k
+2
+1
+y
+E
+9
+g
+5
+a
+A
+I
++
+T
+o
+J
+C
+o
+9
+A
+o
+Q
+0
+B
+u
+J
+B
+A
+F
+x
+j
+4
+I
+B
+B
+7
+Y
+E
+O
+M
+T
+x
+M
+s
+M
+C
+F
+E
+r
+g
+U
+p
+c
+h
+E
+i
+r
+v
+I
+M
+M
+j
+B
+Q
+m
+2
+A
+V
+w
+w
+o
+b
+2
+V
+v
+8
+d
+j
+B
+q
+5
+q
+y
+P
+s
+f
+S
+M
+l
+d
+r
+F
+X
+T
+x
+8
+I
+1
+Q
+S
+W
+E
+V
+N
+g
+H
+U
+R
+Y
+r
+k
+b
+U
+f
+l
+E
+O
+U
+v
+2
+N
++
+9
+U
+e
+c
+q
+z
+9
+f
+D
+v
+5
+F
+5
+d
+Z
+A
+X
+c
+I
+P
+u
+X
+b
+l
+j
+5
+X
+5
+3
+s
+R
+c
+A
+1
+7
+K
+g
+e
+O
+P
+Y
+U
+K
+k
+Z
+2
+5
++
+Y
+u
+i
+b
+o
+V
+e
+X
+L
+y
+q
+S
+u
+B
+D
+i
+F
+y
+E
+r
+c
+x
+H
+y
+F
+2
+l
+X
+J
+4
+z
+0
+R
+p
+Y
+t
+W
+7
+v
+F
+t
+b
+5
+V
+9
+V
+p
+W
+R
+l
+7
+O
+a
+1
+C
+f
+T
+l
+K
+X
+H
+A
+1
+v
+d
+x
+/
+g
+S
+N
+S
+t
+n
+a
+K
+m
++
+e
+V
+o
+r
+V
+/
+X
+z
+U
+k
+7
+A
+M
+K
+7
+C
+O
+8
+9
+y
+G
+K
+h
+z
+A
+C
+d
+T
+R
++
+1
+n
+T
+N
+E
+O
+b
+1
+h
+/
+0
+F
+7
+2
+v
+v
+w
+1
+K
+d
+S
+3
+X
+L
+M
+G
+X
+p
+b
+9
+/
+A
+P
+N
+z
+t
+1
+c
+=
+<
+/
+l
+a
+t
+e
+x
+i
+t
+>
+CU = {T, V },
+V = {[I1; M 1], [I2; M 2], . . . , [IN; M N]}
+Text-guided 
+Generation
+Low-level 
+Visual 
+Analysis
+Controllable 
+Generation
+Semantic 
+Editing
+Element 
+Editing
+Repainting
+Reference 
+Generation
+Layer 
+Editing
+<
+l
+a
+t
+e
+x
+i
+t
+ 
+s
+h
+a
+1
+_
+b
+a
+s
+e
+6
+4
+=
+"
+t
+6
+E
+o
+H
+c
+2
+P
+E
+L
+k
+X
+v
+T
+7
+w
+k
+3
+4
+t
+Y
+O
+q
+N
+F
+W
+4
+=
+"
+>
+A
+A
+A
+C
+1
+n
+i
+c
+j
+V
+H
+L
+T
+s
+J
+A
+F
+D
+3
+U
+F
++
+K
+r
+6
+N
+J
+N
+I
+z
+F
+x
+R
+V
+r
+j
+a
+2
+N
+C
+Z
+O
+M
+S
+E
+w
+o
+k
+Q
+E
+h
+b
+B
+m
+w
+o
+b
+d
+N
+O
+V
+U
+J
+w
+Z
+9
+z
+6
+A
+2
+7
+1
+k
+4
+x
+/
+o
+H
+/
+h
+n
+b
+E
+k
+K
+j
+E
+6
+T
+d
+s
+z
+5
+9
+5
+z
+Z
+u
+6
+9
+d
+u
+i
+5
+M
+d
+f
+1
+1
+4
+w
+y
+N
+7
++
+w
+u
+J
+R
+d
+z
+q
+2
+s
+r
+q
+1
+v
+q
+P
+n
+N
+W
+h
+w
+k
+k
+c
+N
+M
+J
+/
+C
+C
+q
+G
+F
+b
+M
+f
+N
+c
+n
+5
+n
+c
+5
+R
+5
+r
+h
+B
+G
+z
+h
+r
+b
+H
+6
+v
+a
+g
+L
+O
+L
+1
+K
+x
+b
+F
+b
+u
+B
+X
++
+S
+h
+k
+7
+a
+H
+V
+9
+9
+2
+e
+6
+1
+i
+c
+q
+I
+6
+a
+b
+3
+F
+2
+w
+8
+d
+l
+c
+6
+K
+d
+a
+q
+1
+x
+t
+T
+X
+p
+q
+A
+W
+9
+q
+M
+u
+l
+z
+Q
+I
+j
+B
+Q
+W
+k
+q
+x
+K
+o
+L
+2
+i
+h
+i
+w
+A
+O
+E
+g
+z
+B
+4
+I
+M
+T
+9
+m
+A
+h
+p
+q
+c
+J
+A
+z
+p
+C
+4
+t
+o
+Y
+E
+x
+c
+R
+c
+m
+W
+c
+Y
+Y
+I
+c
+a
+R
+P
+K
+Y
+p
+R
+h
+E
+T
+u
+g
+b
+5
+9
+2
+z
+Z
+T
+1
+a
+S
+8
+8
+Y
+6
+l
+2
+6
+B
+S
+P
+3
+o
+i
+U
+G
+n
+Z
+J
+E
+1
+B
+e
+R
+F
+i
+c
+p
+s
+l
+4
+I
+p
+0
+F
++
+5
+v
+3
+W
+H
+q
+K
+u
+4
+3
+o
+b
+6
+d
+e
+Q
+2
+I
+5
+L
+o
+n
+9
+S
+z
+f
+N
+/
+K
+9
+O
+1
+M
+L
+R
+w
+4
+m
+s
+w
+a
+W
+a
+Q
+s
+m
+I
+6
+p
+z
+U
+J
+Z
+F
+d
+E
+T
+f
+X
+v
+l
+T
+F
+y
+S
+E
+k
+T
+u
+A
+u
+x
+S
+P
+C
+j
+l
+R
+O
++
+6
+x
+J
+T
+S
+x
+r
+F
+7
+2
+1
+Z
+P
+x
+N
+Z
+g
+p
+W
+7
+J
+0
+0
+N
+8
+G
+7
+u
+C
+U
+N
+2
+P
+g
+5
+z
+l
+l
+Q
+2
+y
+8
+a
+R
+8
+X
+D
+i
+4
+N
+C
+6
+S
+w
+d
+d
+R
+b
+b
+2
+M
+E
+e
+z
+f
+M
+Y
+J
+Z
+y
+j
+A
+p
+O
+8
+r
+/
+G
+I
+J
+z
+w
+r
+D
+e
+V
+W
+u
+V
+P
+u
+P
+1
+O
+V
+T
+K
+r
+Z
+w
+r
+e
+l
+P
+H
+w
+A
+K
+9
+u
+W
+E
+g
+=
+=
+<
+/
+l
+a
+t
+e
+x
+i
+t
+>
+CU = {T}
+Multi-turn & 
+Long-context 
+Generation
+Input 
+Paradigm
+Tasks
+Source 
+Image
+Instruction 
+Target 
+Image
+To fuse {image} with 
+{image1}
+<
+l
+a
+t
+e
+x
+i
+t
+ 
+s
+h
+a
+1
+_
+b
+a
+s
+e
+6
+4
+=
+"
+W
+T
+B
+h
+q
+n
+v
+E
+e
+K
+g
+b
+6
+C
+G
+n
+M
+V
+U
++
+V
+F
+6
+D
+b
+Q
+Y
+=
+"
+>
+A
+A
+A
+C
+G
+n
+i
+c
+b
+V
+D
+L
+S
+g
+M
+x
+F
+M
+3
+4
+r
+P
+U
+1
+6
+t
+J
+N
+s
+A
+g
+u
+t
+M
+x
+I
+U
+T
+d
+C
+s
+R
+s
+X
+L
+i
+o
+4
+b
+a
+E
+z
+l
+E
+y
+a
+t
+q
+G
+Z
+B
+8
+k
+d
+s
+Q
+z
+z
+H
+W
+7
+8
+F
+T
+c
+u
+F
+H
+E
+n
+b
+v
+w
+b
+M
+2
+0
+X
+2
+n
+o
+g
+5
+H
+D
+O
+v
+T
+e
+5
+x
+4
+8
+F
+V
+2
+B
+Z
+3
+8
+b
+C
+4
+t
+L
+y
+y
+m
+p
+h
+r
+b
+i
++
+s
+b
+m
+1
+b
+e
+7
+s
+N
+l
+S
+U
+S
+M
+o
+c
+G
+o
+l
+I
+t
+n
+y
+i
+m
+O
+A
+h
+c
+4
+C
+D
+Y
+K
+1
+Y
+M
+h
+L
+4
+g
+j
+X
+9
+Y
+S
+3
+3
+m
+/
+d
+M
+K
+h
+6
+F
+d
+z
+C
+K
+m
+R
+e
+Q
+f
+s
+h
+7
+n
+B
+L
+Q
+U
+s
+e
+0
+X
+W
+A
+P
+k
+N
+7
+U
+n
+A
+x
+f
+Y
+j
+d
+1
+0
+5
+r
+T
+S
+f
+l
+J
+k
+L
+n
+Z
+M
+X
+a
+7
+E
+S
+h
+9
+T
+U
+Q
+t
+u
+V
+m
+x
+Y
+5
+a
+s
+s
+j
+U
+G
+n
+i
+f
+2
+l
+J
+T
+Q
+F
+P
+W
+O
++
+a
+n
+H
+0
+C
+R
+g
+I
+V
+B
+B
+l
+G
+r
+b
+V
+g
+x
+e
+S
+i
+R
+w
+K
+l
+h
+W
+d
+B
+P
+F
+Y
+k
+K
+H
+p
+M
+/
+a
+m
+o
+Y
+k
+Y
+M
+p
+L
+x
+6
+t
+l
++
+F
+A
+r
+X
+d
+y
+L
+p
+D
+4
+h
+4
+L
+H
+6
+u
+y
+M
+l
+g
+V
+K
+j
+w
+N
+e
+V
+A
+Y
+G
+B
+m
+v
+V
+y
+8
+T
++
+v
+n
+U
+D
+v
+w
+k
+t
+5
+G
+C
+f
+A
+Q
+j
+p
+5
+q
+J
+c
+I
+D
+B
+H
+O
+c
+8
+J
+d
+L
+h
+k
+F
+M
+d
+K
+E
+U
+M
+n
+1
+X
+z
+E
+d
+E
+E
+k
+o
+6
+D
+T
+z
+E
+O
+z
+Z
+l
+e
+d
+J
+4
+7
+R
+s
+n
+5
+U
+r
+t
+5
+V
+S
+9
+W
+o
+a
+R
+w
+H
+t
+o
+w
+N
+0
+h
+G
+x
+0
+j
+q
+r
+o
+G
+t
+W
+R
+g
+y
+h
+6
+R
+M
+/
+o
+F
+b
+0
+Z
+T
+8
+a
+L
+8
+W
+5
+8
+T
+E
+o
+X
+j
+G
+n
+P
+H
+v
+o
+D
+4
++
+s
+H
+5
+D
+2
+g
+K
+g
+=
+=
+<
+/
+l
+a
+t
+e
+x
+i
+t
+>
+LCU = {{CUi−m}, . . . , {CUi}}
+<instruction1~3>, a black 
+and white cartoon character 
+sits at a table with bread 
+and two cups of coffee, with 
+Shanghai landmarks.
+Figure 2: The overview of all generation and editing task types supported by ACE. These tasks
+are categorized into 8 basic types, multi-turn and long-context generation based on different input
+conditions (in green) and are formulated using the proposed input paradigm as 3 formats (in blue).
+exquisite design, the model is capable of handling various single tasks, multi-turn tasks, and long-
+context tasks with historical information.
+2.1
+PROBLEM DEFINITION
+2.1.1
+TASKS
+When it comes to generation and editing, the input condition information varies significantly de-
+pending on the specific task types. This encompasses a diverse range of forms, including textual
+instructions, conditioning images in controllable generation, masks used in region editing, and im-
+ages in guided generation, among others. We analyze and categorize these conditions from textual
+and visual modalities respectively: (i) Textual modality: we refer to all types of textual condi-
+tions as instructions and categorize them into Generating-based Instructions and Editing-based
+Instructions, depending on whether they describe the content of the generated image directly or the
+difference from the input visual cues; (ii) Visual modality: we categorize all generation tasks into
+8 basic types, as shown in Fig. 2.
+• Text-guided Generation. It only uses generating-based text prompt as a condition to create
+images, and none of the visual cues are adopted.
+• Low-level Visual Analysis. It extracts low-level visual features from input images, such as edge
+maps or segmentation maps. One source image and editing-based instruction are required in the
+task to accomplish creation.
+• Controllable Generation. It is the inverse task of Low-level Visual Analysis, which creates vivid
+images based on given conditions, e.g., edge map, contour image, doodle image, scribble image,
+depth map, segmentation map, low-resolution image, etc.
+• Semantic Editing. It aims to modify some semantic attributes of an input image by providing
+editing instructions, such as altering the style of an image or modifying the facial attributes of a
+character.
+• Element Editing. It focuses on adding, deleting, or replacing a specific subject in the image
+while keeping other elements unchanged.
+• Repainting. It erases and repaints partial image content of input image indicated by given mask
+and instruction.
+• Layer Editing. It decomposes an input image into different layers, each of which contains a
+subject or background, or reversely fuses different layers.
+• Reference Generation. It generates an image based on one or more reference images, analyzing
+the common elements among them and presenting these elements in the generated image.
+5
+Technical Report
+Condition Tokenizing M
+Condition Tokenizing 1
+…
+  Image Indicator Embedding
+× N
+output
+Condition Unit 1
+Condition Unit M
+…
+I
+M
+T
+…
+I
+M
+T
+  Long-Context Attention Blocks
+Long-Context Self-Attention
+Long-Context Cross-Attention
+Condition Tokenizing 1~M
+(a) Overall Architecture of ACE.
+  Long-Context Attention Blocks
+VAE Encoder
+Downsample
+Patchify
+T5
+MLP
+x
+Images
+Masks
+Instruction
+VAE Encoder
+Downsample
+Patchify
+T5
+MLP
+Images
+Masks
+Instruction
+…
+  Image Indicator Embedding
+P-Emb
+T-Emb
+I-Emb
+…
+uMN
+uMN
+…
+…
+…
+I-Emb
+u′ m,n,p
+u′ m,n,p
+y′ m,n
+y′ m,n
+T-Emb
+MLP
+Long Context Self-Attention
+P-Emb
+3D-RoPE
+μ
+Long Context Cross-Attention
+̂ûu
+(b) Detailed Illustration of Main Blocks.
+Figure 3: The illustration of ACE framework. Condition Tokenizing module tokenizes each input
+CU, concatenating them to obtain the visual token sequence and the text token sequence. The
+Image Indicator Embedding module employs pre-defined textual tokens to indicate the image order
+in textual instructions and distinguish various input images. The Long-context Attention Block
+ensures effective communication and integration of long-context sequences.
+By leveraging the generation tasks of these fundamental units, we can combine them to create multi-
+turn scenarios. Furthermore, utilizing the historical information from every round makes it possible
+to tackle long-context visual generation tasks.
+2.1.2
+INPUT PARADIGM
+A significant obstacle to implementing different types of generation and editing task requests within
+one framework lies in the diverse input condition formats of tasks. To address this issue, we design
+a unified input paradigm defined as Conditional Unit (CU) that fits as many tasks as possible. The
+CUs composed of a textual instruction T that describes the generation requirements, along with
+visual information V , where V consists of a set of images I that can be defined as I = ∅(if there
+are no source image) or I = {I1, I2, . . . , IN} (if there are source images) and corresponding masks
+M = {M 1, M 2, . . . , M N}. When there is no specific mask, M is set to a blank image. The overall
+formulation of the CU is as follows:
+CU = {T, V },
+V = {[I1; M 1], [I2; M 2], . . . , [IN; M N]},
+(1)
+where a channel-wise connection operation is performed between corresponding I and M, N rep-
+resents the total number of visual information inputs for this task.
+Furthermore, to better address the demands of complex long-context generation and editing, histor-
+ical information can be optionally integrated into CU, which is formulated as:
+LCUi = {{Ti−m, Ti−m+1, . . . , Ti}, {Vi−m, Vi−m+1, . . . , Vi}}
+(2)
+where m denotes the maximum number of rounds of historical knowledge introduced in the current
+request. LCUi is a Long-context Condition Unit used to generate desired content for the i-th request.
+2.2
+ARCHITECTURE
+In this section, we introduce a unified visual generation framework that can perform all visual gen-
+eration tasks within a single model, and incorporate long-context conditions to enhance compre-
+hension. As illustrated in Fig. 3a, the overall framework is built based on a Diffusion Transformer
+model (Vaswani et al., 2017; Peebles & Xie, 2023), and integrated with three novel components to
+achieve unified generation: Condition Tokenizing, Image Indicator Embedding, and Long-context
+Attention Block. We will provide a detailed description of them below.
+6
+Technical Report
+Condition Tokenizing. Considering an LCU that comprises M CUs, the model involves three entry
+points for each CU: a language model (T5) (Raffel et al., 2020) to encode textual instructions, a
+Variational Autoencoder (VAE) (Kingma & Welling, 2014) to compress reference image to latent
+representation, and a down-sampling module to resize mask to the shape of corresponding latent im-
+age. The latent image and its mask (an all-one mask if no mask is provided) are concatenated along
+the channel dimension. These image-mask pairs are then patchified into 1-dimensional visual token
+sequences um,n,p, where m, n are indexes for CUs and visual information Vs in each CU, while p
+denotes the spatial index in patchified latent images. Similarly, textual instructions are encoded into
+1-dimensional token sequences ym. After processing within each CU, we separately concatenate all
+visual token sequences and all textual token sequences to form a long-context sequence.
+Image Indicator Embedding.
+As illustrated as Fig. 3b, to indicate the image order in tex-
+tual instructions and distinguish various input images, we encode some pre-defined textual tokens
+“{image}, {image1}, ..., {imageN}” into T5 embeddings as Image Indicator Embeddings (I-Emb).
+These indicator embeddings are added to the corresponding image embedding sequence and text
+embedding sequence, which is formulated as:
+y′
+m,n = ym + I-Embm,n,
+(3)
+u′
+m,n,p = um,n,p + I-Embm,n.
+(4)
+In this way, image indicator tokens in textual instructions and the corresponding images are implic-
+itly associated.
+Long-context Attention Block.
+Given the long-context visual sequence, we first modulate it
+with the time step embedding (T-Emb), then incorporate a 3D Rotational Positional Encodings
+(RoPE) (Su et al., 2023) to differentiate between different spatial- and frame-level image embed-
+dings. During the Long Context Self-Attention, all image embeddings of each CU at each spatial
+location, are equivalently and comprehensively interact with each other by µ = Attn(u′, u′). Next,
+unlike the cross-attention layer of the conventional Diffusion Transformer model, where each visual
+token attends to all of the textual tokens, we implement cross-attention operation with each condi-
+tion unit. That means image tokens in m-th CU will only attend to the textual tokens from the same
+CU. This can be formulated as:
+ˆum,n = Attn(µm,n, y′
+m,n).
+(5)
+This ensures that, within the cross-attention layer, the text embeddings and image embeddings align
+on a frame-by-frame basis.
+3
+DATASETS
+3.1
+PAIR DATA COLLECTION
+A critical challenge of training foundational visual generation model lies in how to acquire pair-
+wise images for various tasks. In this section, we introduce two ways to efficiently build high-
+quality datasets for most of the generation and editing tasks: (i) Synthesizing from source image:
+thanks to the rapid development in the field of visual generation, there have been many of powerful
+open-source models designed to solve one specific problem. Leveraging these powerful single-point
+technologies, we could synthesis plenty of image pairs for lots of generation and editing tasks,
+such as controllable generation, style editing, object editing, and so on. (ii) Pairing from massive
+databases: though the synthesis-based method is efficient and straightforward in acquiring pairwise
+data. However, It still possesses two drawbacks. First, some editing problems have not been fully ex-
+plored, and there are no powerful open-source models available for these tasks. Second, using only
+synthetic data can easily cause over-fitting and reduce the quality of generated images. Therefore,
+it is essential to provide sufficient real data to address the aforementioned drawbacks. We propose
+a hierarchically aggregating pipeline for pairing content-related images from massive databases to
+build pairs of data for training, as illustrated in Fig. 4. We first extract semantic features using
+SigLIP (Zhai et al., 2023) from large-scale datasets (e.g., LAION-5B (Schuhmann et al., 2022),
+OpenImages (OpenImage, 2023), and our private datasets). Then leveraging K-means clustering
+technology, coarse-grained clustering is implemented to divide all images into tens of thousands of
+clusters. Within each cluster, we implement a two-turn union-find algorithm to achieve fine-grained
+7
+Technical Report
+Synthesizing-based
+Pairing-based
+Pair Data
+Instruction
+DataBase
+Cluster
+Group
+SigLip
+K-Means
+Similarity
+Filter
+Union & Find
+Disjoint Sets
+Level1 Disjoint Sets
+Level2 Disjoint Sets
+Correlation
+Filter
+Global 
+Filter
+Template-based
+MLLM-based
+Referring to depth map {image}, please restore 
+the specific areas  highlighted by the mask, as 
+detailed in the text description {caption}.
+System Prompt: I need your help with instructions 
+on image editing from a given {image}, {caption}, and 
+mask. For the definition of instructions I want to 
+describe more clearly, accurately, diverse, sentence 
+structure and expression can be richer.
+Instruction-1
+Instruction-2
+Instruction-N
+…
+MLLM
+Pair Image (A & B)
+Common Info
+Different
+Info A->B
+Different
+Info B->A
+Caption
+Info A
+Caption
+Info B
+Instruction 
+Construction
+ 
+ 
+ I now understand the 
+similarities and differences 
+between the two images, {INFO}. 
+Please provide two pairs of editing 
+instructions.
+Fine-tune
+System Prompt:  
+Add a rabbit doll wearing 
+pink overalls …
+Manual Annotation:
+Features
+Clusters
+Figure 4: The pipeline of dataset construction and instructions labeling. In data construction,
+two methods are utilized: synthesizing using open-source expert models and mining from large-
+scale data. For instruction labeling, we combined templating with MLLM labeling, further training
+the Instruction Captioner to achieve large-scale instruction labeling.
+image aggregation. The first turn is based on the SigLIP feature and the second turn uses a similarity
+score tailored for specific tasks. For instance, we calculate the face similarity score for the facial
+editing task and the object consistency score for the general editing task. Finally, we collect all
+possible pairs from each disjoint set and implement cleaning strategies to filter high-quality pairs.
+Benefiting from these two automatic pipelines, we construct a large-scale training dataset that con-
+sists of nearly 0.7 billion image pairs, covering 8 basic types of tasks, multi-turn and long-context
+generation. We depict its distribution in Fig. 6 and provide a detailed description of the specific data
+construction methods for each task, please refer to appendix B.
+3.2
+INSTRUCTIONS
+In addition to collecting image pairs, it is essential to label clear natural language instructions that
+indicate how to transform one image into another. Compared to the caption generation commonly
+used in text-to-image task, instruction labeling is generally more challenging, as it requires analyzing
+not only the semantics of individual images, but also the discrepancies across multiple images. We
+employ both Template-based and MLLM-based methods to tackle this challenge. Template-based
+method constructs instruction templates for specific vision tasks by leveraging human knowledge
+priors. However, the instructions generated by this method lack diversity, which can lead to signifi-
+cant overfitting problems. MLLM-based method generates unique instructions for each given editing
+pair, leveraging off-the-shelf MLLMs. Nonetheless, current MLLMs exhibit limitations in produc-
+ing precise instructions for editing tasks involving non-natural images, such as depth-controlled
+image generation and image segmentation. Thus, we combine these two methods and design an
+effective strategy to mitigate the aforementioned drawbacks. For tasks that contain non-natural im-
+ages, we utilize a template-based method to generate instruction templates. These templates are
+then combined with the generated captions to produce the final instructions. To address the issue of
+insufficient diversity, we employ LLMs to reformulate instructions multiple times, and tune prompts
+to ensure that each rewritten version is distinct from all preceding instructions. For tasks that con-
+tain natural images, we employ an MLLM to predict the differences and commonalities between
+the images in the input pair. Then an LLM is used to generate instructions focusing on semantic
+distinctions according to the analysis of the differences and commonalities. Further, the collected
+instructions generated by these two methods undergo human annotation and correction. The revised
+instructions are used for fine-tuning an open-source MLLM, enabling it to predict instructions for
+any given image pair. Specifically, we collect a dataset of approximately 800,000 curated instruc-
+tions and train an Instruction Captioner by fine-tuning the InternVL2-26B (Chen et al., 2024).
+8
+Technical Report
+Table 1: Results on the MagicBrush benchmark. LC denotes long-context generation with history.
+Settings
+Methods
+L1↓
+L2↓
+CLIP-I↑
+DINO↑
+CLIP-T↑
+Single-turn
+Global Description-guided
+SD-SDEdit (Meng et al., 2021)
+0.1014
+0.0278
+0.8526
+0.7726
+0.2777
+Null Text Inversion (Mokady et al., 2022)
+0.0749
+0.0197
+0.8827
+0.8206
+0.2737
+GLIDE (Nichol et al., 2022)
+3.4973
+115.8347
+0.9487
+0.9206
+0.2249
+Blended Diffusion (Avrahami et al., 2022)
+3.5631
+119.2813
+0.9291
+0.8644
+0.2622
+ACE (Ours)
+0.0505
+0.0160
+0.9436
+0.9184
+0.2833
+Instruction-guided
+HIVE (Zhang et al., 2024)
+0.1092
+0.0380
+0.8519
+0.7500
+-
+InstructPix2Pix (Brooks et al., 2023)
+0.1122
+0.0371
+0.8524
+0.7428
+0.2764
+MagicBrush (Zhang et al., 2023a)
+0.0625
+0.0203
+0.9332
+0.8987
+0.2781
+UltraEdit (Zhao et al., 2024)
+0.0575
+0.0172
+0.9307
+0.8982
+-
+ACE (Ours)
+0.0507
+0.0165
+0.9453
+0.9215
+0.2841
+Multi-turn
+Global Description-guided
+SD-SDEdit (Meng et al., 2021)
+0.1616
+0.0602
+0.7933
+0.6212
+0.2694
+Null Text Inversion (Mokady et al., 2022)
+0.1057
+0.0335
+0.8468
+0.7529
+0.2710
+GLIDE (Nichol et al., 2022)
+11.7487
+1079.5997
+0.9094
+0.8494
+0.2252
+Blended Diffusion (Avrahami et al., 2022)
+14.5439
+1510.2271
+0.8782
+0.7690
+0.2619
+ACE (Ours)
+0.0778
+0.0290
+0.9124
+0.8611
+0.2843
+ACE (Ours w/ LC)
+0.0768
+0.0285
+0.9136
+0.8635
+0.2819
+Instruction-guided
+HIVE (Zhang et al., 2024)
+0.1521
+0.0557
+0.8004
+0.6463
+0.2673
+InstructPix2Pix (Brooks et al., 2023)
+0.1584
+0.0598
+0.7924
+0.6177
+0.2726
+MagicBrush (Zhang et al., 2023a)
+0.0964
+0.0353
+0.8924
+0.8273
+0.2754
+UltraEdit (Zhao et al., 2024)
+0.0745
+0.0236
+0.9045
+0.8505
+-
+ACE (Ours)
+0.0773
+0.0293
+0.9128
+0.8661
+0.2855
+ACE (Ours w/ LC)
+0.0761
+0.0284
+0.9140
+0.8668
+0.2809
+Once trained, the Instruction Captioner is able to take any two images as input and generates the
+instruction for transforming the source image to the target image. It can also be further extended
+to the processing of cluster data, by entering a set of images, obtaining the similarity description
+among images within the cluster, and the differences between each pair within the cluster. The
+above process is illustrated in Fig. 4.
+4
+EXPERIMENTS
+4.1
+BENCHMARKS AND METRICS
+Existing Benchmarks. We first evaluate on the commonly used benchmark MagicBrush (Zhang
+et al., 2023a). It contains an overall 1,053 edit turns and 535 edit sessions for single-turn and multi-
+turn image editing respectively. It compares the output images with groundtruth images and the
+provided target text descriptions. Following the setting proposed in the MagicBrush benchmark,
+we calculate the L1 distance, L2 distance, CLIP (Radford et al., 2021) similarity, DINO (Liu et al.,
+2023a) similarity between the generated image and groundtruth image, and CLIP similarity between
+the generated image and textual prompt. We also evaluate the Emu Edit benchmark (Sheynin et al.,
+2024), please see appendix E for details.
+ACE Benchmark. To thoroughly evaluate the performance of various visual generation tasks, we
+build a benchmark dataset that covers all types of tasks the aforementioned.
+ACE benchmark
+consists of both real and generated images. The real images are primarily sourced from the MS-
+COCO (Lin et al., 2014) dataset and the generated images are created by Midjourney (Midjourney,
+2023), using prompts obtained from JourneyDB (Sun et al., 2023a). For each task type, we manu-
+ally craft instructions and masks to closely resemble actual user input patterns, reaching a total of
+12,000 entries. The detailed statistics of ACE benchmark can be found in Fig. 24. We evaluate
+image quality and prompt following scores through a user study. The image quality score assesses
+the aesthetic quality of the generated images, while the prompt following score measures how well
+the images align with the provided textual instructions.
+9
+Technical Report
+Instruction: Here is a posture {image}, I need a color picture based on this image according to the brief: A blonde female with a 
+purple basketball uniform and a basketball in hand.
+Controllable Generation
+Instruction: create an equivalent image for the provided edge {image} to represent "flower on backround, oil painting, 
+Italya, pink, 3D"
+7. StyleBooth
+2. IP2P
+11. LaMa
+3. MagicBrush
+10. SD-Inpaint
+5. SEED-X
+12. IP-Adapter
+6. UltraEdit
+13. InstantID
+1. ControlNet
+4. CosXL
+14. FaceChain
+15. AnyText
+16. UDiffText
+ACE
+8. SDEdit
+9. LoRA
+Style Editing
+Instruction: 
+Convert {image} into vibrant pop art style
+Instruction: 
+Transform {image} into cartoon style
+Input Image
+2
+3
+6
+8
+4
+ACE
+5
+Input Image
+2
+3
+4
+7
+ACE
+Input Image
+2
+3
+4
+7
+ACE
+Reference Generation
+6
+8
+6
+8
+Input Image
+2
+3
+6
+8
+4
+1
+ACE
+Instruction: {image}, {image1}, {image2}, {image3} , old man in a trendy yellow dunejacket. capture photography, Graphics
+9
+9
+ACE
+9
+9
+Instruction: 
+{image} {image1} {image2} {image3} , a girl dressed in gray and red tracksuit, the background is a gym 
+Instruction: 
+Embed the text ‘shop’ at the place highlighted by mask in the {image}
+Text Render
+Instruction: 
+Add a dark green word “cat” over the cat in {image}
+Text Remove
+Instruction: 
+On {image}, obliterate the text found in the mask area
+Instruction: 
+Delete all text in {image}
+Input Image
+15
+16
+ACE
+8
+4
+Input Image
+Input Image
+11
+6
+10
+ACE
+Input Image
+3
+6
+4
+ACE
+Instruction: 
+Let the girl face the camera
+General Editing
+Instruction: Two 3D adorable children dressed in chinese traditional clothes, their waists cinched with blue and red belts. The 
+boy with his spiky black hair and smile, stands alongside the girl who sports braided pigtails.
+Input Image
+2
+3
+8
+5
+6
+4
+ACE
+5
+Input Image
+6
+2
+3
+ACE
+6
+2
+ACE
+4
+6
+3
+2
+8
+Input Image
+Input Image
+Instruction: 
+Face Editing
+Instruction: Change the head color of the woman in {image} to light hair with a blue gradient. Change dress for white 
+scarf, and red dress.
+Input Image
+2
+4
+6
+12
+13
+14
+ACE
+13
+14
+ACE
+Input Image
+Maintain facial consistency of the man in {image}, A man exploring a local market filled with spices and textiles, 
+looking fascinated, dressed in light, summery attire, absorbing the vibrant culture.
+2
+4
+6
+12
+1
+Instruction: 
+Remove the dragonfly in {image}.
+Object Removal
+Instruction: 
+Remove the bear in mask of {image}.
+Input Image
+10
+Input Image
+ACE
+6
+Input Image
+2
+3
+5
+8
+4
+ACE
+6
+11
+Instruction: 
+I want to add a lemon character on the left of {image} next to the middle lemon.
+Object Addition
+Instruction: 
+Add a dog sit on the chair on the mask of {image}.
+Input Image
+10
+Input Image
+ACE
+6
+Input Image
+2
+3
+5
+8
+4
+ACE
+6
+Instruction: 
+Repaint
+Instruction: According to “oil painting of 3 white orchid flowers on a thin branch with green orchid leaves in background”, 
+please expand the content in mask of {image}.
+Input Image
+11
+6
+1
+10
+ACE
+11
+6
+ACE
+Input Image
+Using the text description “The village hut is surrounded by endless fields. The fields are full of golden rapeseed flowers, occasionally mixed 
+with pink cherry blossoms, blue sky and white clouds, clear sky”, repaint the black regions indicated by the mask in the {image}.
+Mask Image
+Mask Image
+Instruction: 
+Text-guided & Lowlevel
+Instruction: 
+Extract edge / segmentation / scribble / depth of {image}
+Input Image
+An adorable, anthropomorphic rabbit dressed for adventure in a lush forest setting. The rabbit is the focal point, 
+positioned slightly off-center to the left. It has large, expressive blue eyes that convey a sense of wonder and 
+excitement. Its fur is a soft, creamy white. 
+Edge
+Segmentation
+Scribble
+Depth
+Replace the existing face in {image} by accurately integrating the 
+face from {image1} in the mask zone.
+Instruction: 
+Face Swap
+Virtual Tryon
+Change the cloth in {image} to the one in {image1}
+Instruction: 
+Style Reference
+Instruction: 
+Shape {image} with inspiration from {image1}
+Reference Editing
+Ref Image
+Ref Image
+Ref Image
+Ref Image
+Input Image
+Ref Image
+Input Image
+Ref Image
+Input Image
+Ref Image
+Figure 5: Comparison and visualization of ACE performance with expert models in different
+tasks. ACE demonstrates adaptability to multi-task and achieves superior performance.
+10
+Technical Report
+Table 2: User study results on ACE benchmark. For each method in every supported task, we
+evaluate both prompt following and image quality, reporting the two scores in a single cell, separated
+by a “/”. “-” means this task does not exist or is not supported by the current method.
+Txt2img
+Controllable
+Semantic
+Element
+Repainting
+Txt2img
+Canny
+Depth
+Scribble
+Pose
+Face
+Style
+General
+Add Text
+Rm Text
+Add Obj.
+Rm Obj.
+Inpaint
+Outpaint
+Global Editing
+SD1.5 (AI, 2022a)
+3.3/2.2
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+SDXL (StabilityAI, 2022)
+4.1/2.8
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+-
+CtrlNet (Zhang et al., 2023b)
+-
+2.5/2.0 3.8/2.4 1.9/2.0 2.9/1.9
+-
+-
+-
+-
+-
+-
+-
+-
+-
+StyleBooth (Han et al., 2024)
+-
+-
+-
+-
+-
+-
+3.3/2.6
+-
+-
+-
+-
+-
+-
+-
+IP-Adapter (Ye et al., 2023)
+-
+-
+-
+-
+-
+2.0/2.2
+-
+1.7/2.5
+-
+-
+-
+-
+-
+-
+InstantID (Wang et al., 2024b)
+-
+-
+-
+-
+-
+2.5/2.7
+-
+-
+-
+-
+-
+-
+-
+-
+FaceChain (Liu et al., 2023b)
+-
+-
+-
+-
+-
+2.0/3.0
+-
+-
+-
+-
+-
+-
+-
+-
+SDEdit (Meng et al., 2021)
+-
+1.4/1.9 1.3/1.8 1.1/1.6 1.2/1.4 1.3/2.1 1.1/1.7 1.5/2.1 1.1/2.2 1.1/1.7 1.5/2.1 1.1/2.0
+-
+-
+IP2P (Brooks et al., 2023)
+-
+1.9/2.0 1.7/2.0 1.5/2.3 1.4/1.4 2.3/2.4 2.4/2.5 2.2/2.4 1.1/2.6 1.3/2.6 2.0/2.4 1.5/2.4
+-
+-
+MB (Zhang et al., 2023a)
+-
+1.3/1.8 1.3/1.7 1.3/1.9 1.1/1.3 2.4/2.3 1.4/2.0 2.2/2.3 1.5/2.4 2.2/2.5 3.1/2.2 2.1/2.4
+-
+-
+SEED-X (Ge et al., 2024b)
+-
+1.6/2.1 1.7/2.0 1.7/2.2 1.5/1.5 2.0/2.7 2.2/2.5 2.1/2.7 1.3/2.6 2.1/2.6 1.9/2.6 2.5/2.4
+-
+-
+CosXL (StabilityAI, 2024)
+-
+4.1/2.9 4.1/2.8 2.6/2.9 3.7/2.1 2.9/3.1 3.2/3.0 3.2/2.9 1.4/2.7 1.0/2.9 2.8/2.5 1.1/3.1
+-
+-
+UltraEdit (Zhao et al., 2024)
+-
+1.7/2.2 1.2/1.8 1.3/2.3 1.1/1.3 2.3/2.5 2.1/2.4 2.6/2.5 1.7/2.6 1.1/2.7 2.7/2.3 1.5/2.6
+-
+-
+ACE (Ours)
+3.7/2.5 4.6/2.7 4.5/2.8 4.8/2.9 4.1/2.3 2.8/2.8 2.4/2.6 2.1/2.5 2.8/2.7 4.4/2.9 2.6/2.4 3.9/2.5
+-
+-
+Local Editing
+LaMa (Suvorov et al., 2022)
+-
+-
+-
+-
+-
+-
+-
+-
+-
+3.6/2.8
+-
+4.5/2.8 1.6/2.3 3.0/2.4
+SDInpaint (AI, 2022b)
+-
+-
+-
+-
+-
+-
+-
+-
+-
+2.6/2.6 1.6/2.7 2.2/2.5 3.6/2.6
+-
+CtrlNet (Zhang et al., 2023b)
+-
+-
+-
+-
+-
+-
+-
+-
+-
+2.9/2.7 1.9/2.5 2.6/2.2 3.0/2.1 3.2/2.1
+AnyText (Tuo et al., 2023)
+-
+-
+-
+-
+-
+-
+-
+-
+3.5/2.7
+-
+-
+-
+-
+-
+UDiffText (Zhao & Lian, 2024)
+-
+-
+-
+-
+-
+-
+-
+-
+3.6/2.7
+-
+-
+-
+-
+-
+UltraEdit (Zhao et al., 2024)
+-
+1.4/1.9 1.2/1.8 1.2/2.0
+-
+-
+-
+-
+1.1/2.8 1.2/2.9 2.9/2.5 1.4/2.5 1.1/1.7 1.1/2.1
+ACE (Ours)
+-
+4.8/2.6 4.3/2.5 4.8/2.6
+-
+-
+-
+-
+4.5/2.9 4.5/2.9 3.7/2.5 4.3/2.5 4.4/2.7 4.6/2.8
+4.2
+QUALITATIVE EVALUATION
+In our qualitative evaluation, we present a comparison of our method with SOTA approaches across
+various tasks, including ControlNet (Zhang et al., 2023b), InstructPix2Pix (Brooks et al., 2023),
+MagicBrush (Zhang et al., 2023a), CosXL (StabilityAI, 2024), SEED-X Edit (Ge et al., 2024a),
+UltraEdit (Zhao et al., 2024), StyleBooth (Han et al., 2024), SDEdit (Meng et al., 2021), LoRA (Hu
+et al., 2022), SD-Inpaint (AI, 2022b), LaMa (Suvorov et al., 2022), IP-Adapter (Ye et al., 2023),
+InstantID (Wang et al., 2024b), FaceChain (Liu et al., 2023b), AnyText (Tuo et al., 2023), UDiff-
+Text (Zhao & Lian, 2024). In Fig. 5, we present qualitative comparisons between our single ACE
+model and 16 other methods across 12 subtasks. Overall, our method not only addresses a diverse
+range of tasks but also performs superior compared to task-specific methods. Additionally, we also
+show some extra tasks that the comparison methods do not perform well in the last three lines. Please
+see appendix G, for more examples of qualitative evaluation.
+4.3
+QUANTITATIVE EVALUATION
+Evaluation on Existing Benchmarks. We first compare our method with baselines on the Mag-
+icBrush benchmark. Results are present on Tab. 1. For single-turn image editing, ACE significantly
+outperforms other methods under an instruction-guided setting while demonstrating comparable per-
+formance under a description-guided setting. For each setting of multi-turn image editing, we first
+employ the same inference way as MagicBrush, performing independent and continuous edits on a
+single image. The results show that our approach has significant advantages. Furthermore, we con-
+struct a long sequence using the historical information from each editing round, achieving a certain
+improvement in performance compared to not using it. This also demonstrates the effectiveness of
+LCU and architecture design.
+Evaluation on ACE Benchmark. We conduct a comprehensive human evaluation using our bench-
+mark to assess the performance of generated images, employing image scoring as the evaluation
+metric. Specifically, we score each image considering two aspects: prompt following and image
+quality. The prompt following metric measures the image compliance with text instructions or text
+descriptions, and is categorized into five levels. The image quality metric encompasses various as-
+11
+Technical Report
+pects such as generated color, details, layout, and visual appeal, and is scored on a scale from 1 to 5.
+Considering the broad capabilities of our method, we compare it with several common approaches
+and some experts designed for specific tasks. We engaged 5 professional designers as evaluators to
+carry out these assessments. For each task, the data is evenly distributed among the evaluators in an
+anonymous manner, and scores are aggregated for analysis.
+As shown in Tab. 2, we compare our approach across multiple global editing tasks and local editing
+tasks. The prompt following score and image quality score are presented together, separated by a “/”
+pattern. The bold numbers represent the best, and the underlined numbers indicate the second best.
+Our method achieves the highest prompt following scores in 7 of 12 global editing tasks and 8 of 10
+local editing tasks, which demonstrates that ACE fully understands the intention of the instruction
+and is able to correctly generate an image that meets the instruction. Furthermore, ACE achieves
+the best image quality scores in 5 of 10 global editing tasks and 7 of 10 local editing tasks. These
+results indicate that ACE excels at generating high aesthetic images across various image editing
+tasks. Nonetheless, our method performs unsatisfactorily in certain tasks, such as general editing
+and style editing. One possible reason is that images generated by methods using larger models,
+such as those producing 1024-resolution images based on the SDXL model, are more preferred by
+evaluators compared to those produced by our model, which has a size of 0.6B parameters and an
+output resolution of around 512.
+5
+CONCLUSION
+We propose ACE, a versatile foundational generative model that excels at creating images, and
+following instructions across a wide range of generative tasks. Users can specify their generation
+intentions through customized text prompts and image inputs. Furthermore, we advance the explo-
+ration of capabilities within interactive dialogue scenarios, marking a significant step forward in the
+processing of long contextual historical information in the field of visual generation. Our work aims
+to provide a comprehensive generative model for the public and professional designers, serving as a
+productivity enhancement tool to foster innovation and creativity.
+Acknowledgments. We sincerely appreciate the contributions of many colleagues for their insight-
+ful discussions, valuable suggestions, and constructive feedback, including: Haiming Zhao, Yuntao
+Hong, You Wu, Jixuan Chen, Yuwei Wang, and Sheng Yao for their data contributions, and Lianghua
+Huang, Kai Zhu, and Yutong Feng for their discussions, suggestions, and the sharing of resources.
+12
+Technical Report
+REFERENCES
+Marah Abdin, Jyoti Aneja, Hany Awadalla, Ahmed Awadallah, Ammar Ahmad Awan, Nguyen
+Bach, Amit Bahree, Arash Bakhtiari, Jianmin Bao, Harkirat Behl, Alon Benhaim, Misha Bilenko,
+Johan Bjorck, S´ebastien Bubeck, et al. Phi-3 Technical Report: A Highly Capable Language
+Model Locally on Your Phone. arXiv preprint arXiv:2404.14219, 2024.
+Runway AI. Stable Diffusion v1.5 Model Card, https://huggingface.co/runwayml/
+stable-diffusion-v1-5, 2022a.
+Runway AI.
+Stable Diffusion Inpainting Model Card,
+https://huggingface.co/
+runwayml/stable-diffusion-inpainting, 2022b.
+Rohan Anil, Andrew M. Dai, Orhan Firat, Melvin Johnson, Dmitry Lepikhin, Alexandre Passos,
+et al. PaLM 2 Technical Report. arXiv preprint arXiv:2305.10403, 2023.
+Anthropic.
+Introducing
+Claude,
+https://www.anthropic.com/index/
+introducing-claude., 2023a.
+Anthropic.
+Claude
+2.
+Technical
+report,
+https://www-files.anthropic.com/
+production/images/Model-Card-Claude-2.pdf, 2023b.
+Anthropic.
+The Claude 3 Model Family:
+Opus, Sonnet, Haiku, https://www-cdn.
+anthropic.com/de8ba9b01c9ab7cbabf5c33b80b7bbc618857627/Model_
+Card_Claude_3.pdf, 2024.
+Omri Avrahami, Dani Lischinski, and Ohad Fried. Blended Diffusion for Text-driven Editing of
+Natural Images. In IEEE Conf. Comput. Vis. Pattern Recog., pp. 18208–18218, 2022.
+Jinze Bai, Shuai Bai, Yunfei Chu, Zeyu Cui, Kai Dang, Xiaodong Deng, Yang Fan, Wenbin Ge,
+Yu Han, Fei Huang, Binyuan Hui, Luo Ji, Mei Li, Junyang Lin, Runji Lin, Dayiheng Liu, Gao
+Liu, Chengqiang Lu, Keming Lu, et al. Qwen Technical Report. arXiv preprint arXiv:2309.16609,
+2023.
+Rumeysa Bodur, Erhan Gundogdu, Binod Bhattarai, Tae-Kyun Kim, Michael Donoser, and Loris
+Bazzani. iEdit: Localised Text-guided Image Editing with Weak Supervision. In IEEE Conf.
+Comput. Vis. Pattern Recog., pp. 7426–7435, 2024.
+Tim Brooks, Aleksander Holynski, and Alexei A. Efros. InstructPix2Pix: Learning To Follow Image
+Editing Instructions. In IEEE Conf. Comput. Vis. Pattern Recog., pp. 18392–18402, 2023.
+Tom B. Brown, Benjamin Mann, Nick Ryder, Melanie Subbiah, Jared Kaplan, Prafulla Dhariwal,
+Arvind Neelakantan, Pranav Shyam, Girish Sastry, et al. Language Models are Few-Shot Learn-
+ers. arXiv preprint arXiv:2005.14165, 2020.
+John Canny. A Computational Approach to Edge Detection. IEEE Trans. Pattern Anal. Mach.
+Intell., pp. 679–698, 1986.
+Zhe Cao, Gines Hidalgo, Tomas Simon, Shih-En Wei, and Yaser Sheikh. OpenPose: Realtime
+Multi-Person 2D Pose Estimation Using Part Affinity Fields. IEEE Trans. Pattern Anal. Mach.
+Intell., 43(1):172–186, 2021. ISSN 0162-8828, 2160-9292, 1939-3539.
+Caroline Chan, Fr´edo Durand, and Phillip Isola. Learning To Generate Line Drawings That Convey
+Geometry and Semantics. In IEEE Conf. Comput. Vis. Pattern Recog., pp. 7915–7925, 2022.
+Junsong Chen, Jincheng Yu, Chongjian Ge, Lewei Yao, Enze Xie, Yue Wu, Zhongdao Wang, James
+Kwok, Ping Luo, Huchuan Lu, and Zhenguo Li. PixArt-α: Fast Training of Diffusion Transformer
+for Photorealistic Text-to-Image Synthesis. arXiv preprint arXiv:2310.00426, 2023a.
+Xi Chen, Lianghua Huang, Yu Liu, Yujun Shen, Deli Zhao, and Hengshuang Zhao. AnyDoor:
+Zero-shot Object-level Image Customization. arXiv preprint arXiv:2307.09481, 2023b.
+13
+Technical Report
+Zhe Chen, Jiannan Wu, Wenhai Wang, Weijie Su, Guo Chen, Sen Xing, Muyan Zhong, Qinglong
+Zhang, Xizhou Zhu, Lewei Lu, Bin Li, Ping Luo, Tong Lu, Yu Qiao, and Jifeng Dai. InternVL:
+Scaling up Vision Foundation Models and Aligning for Generic Visual-Linguistic Tasks. In IEEE
+Conf. Comput. Vis. Pattern Recog., pp. 24185–24198, 2024.
+Alibaba Cloud. Tongyi Wanxiang, https://tongyi.aliyun.com/wanxiang, 2023.
+Jiankang Deng, Jia Guo, Niannan Xue, and Stefanos Zafeiriou. ArcFace: Additive Angular Margin
+Loss for Deep Face Recognition. In IEEE Conf. Comput. Vis. Pattern Recog., pp. 4690–4699,
+2019a.
+Jiankang Deng, Jia Guo, Debing Zhang, Yafeng Deng, Xiangju Lu, and Song Shi. Lightweight Face
+Recognition Challenge. In Int. Conf. Comput. Vis., pp. 0–0, 2019b.
+Yuning Du, Chenxia Li, Ruoyu Guo, Xiaoting Yin, Weiwei Liu, Jun Zhou, Yifan Bai, Zilin Yu,
+Yehua Yang, Qingqing Dang, and Haoshuang Wang. PP-OCR: A Practical Ultra Lightweight
+OCR System. arXiv preprint arXiv:2009.09941, 2020.
+Abhimanyu Dubey, Abhinav Jauhri, Abhinav Pandey, Abhishek Kadian, Ahmad Al-Dahle, Aiesha
+Letman, Akhil Mathur, Alan Schelten, Amy Yang, Angela Fan, Anirudh Goyal, et al. The Llama
+3 Herd of Models. arXiv preprint arXiv:2407.21783, 2024.
+Patrick Esser, Sumith Kulal, Andreas Blattmann, Rahim Entezari, Jonas M¨uller, Harry Saini, Yam
+Levi, Dominik Lorenz, Axel Sauer, Frederic Boesel, Dustin Podell, Tim Dockhorn, Zion En-
+glish, Kyle Lacey, Alex Goodwin, Yannik Marek, and Robin Rombach. Scaling Rectified Flow
+Transformers for High-Resolution Image Synthesis. In Int. Conf. Mach. Learn., 2024.
+FLUX. FLUX, https://blackforestlabs.ai/, 2024.
+Yuying Ge, Sijie Zhao, Chen Li, Yixiao Ge, and Ying Shan. SEED-Data-Edit Technical Report: A
+Hybrid Dataset for Instructional Image Editing. arXiv preprint arXiv:2405.04007, 2024a.
+Yuying Ge, Sijie Zhao, Jinguo Zhu, Yixiao Ge, Kun Yi, Lin Song, Chen Li, Xiaohan Ding, and
+Ying Shan. SEED-X: Multimodal Models with Unified Multi-granularity Comprehension and
+Generation. arXiv preprint arXiv:2404.14396, 2024b.
+Zigang Geng, Binxin Yang, Tiankai Hang, Chen Li, Shuyang Gu, Ting Zhang, Jianmin Bao, Zheng
+Zhang, Houqiang Li, Han Hu, Dong Chen, and Baining Guo. InstructDiffusion: A Generalist
+Modeling Interface for Vision Tasks. In IEEE Conf. Comput. Vis. Pattern Recog., pp. 12709–
+12720, 2024.
+Zhen Han, Chaojie Mao, Zeyinzi Jiang, Yulin Pan, and Jingfeng Zhang. StyleBooth: Image Style
+Editing with Multimodal Instruction. arXiv preprint arXiv:2404.12154, 2024.
+Edward J. Hu, Yelong Shen, Phillip Wallis, Zeyuan Allen-Zhu, Yuanzhi Li, Shean Wang, Lu Wang,
+and Weizhu Chen. LoRA: Low-Rank Adaptation of Large Language Models. In Int. Conf. Learn.
+Represent., 2022.
+Jiehui Huang, Xiao Dong, Wenhui Song, Hanhui Li, Jun Zhou, Yuhao Cheng, Shutao Liao, Long
+Chen, Yiqiang Yan, Shengcai Liao, and Xiaodan Liang. ConsistentID: Portrait Generation with
+Multimodal Fine-Grained Identity Preserving. arXiv preprint arXiv:2404.16771, 2024a.
+Lianghua Huang, Di Chen, Yu Liu, Yujun Shen, Deli Zhao, and Jingren Zhou. Composer: Creative
+and Controllable Image Synthesis with Composable Conditions. In Int. Conf. Mach. Learn., 2023.
+Yuzhou Huang, Liangbin Xie, Xintao Wang, Ziyang Yuan, Xiaodong Cun, Yixiao Ge, Jiantao
+Zhou, Chao Dong, Rui Huang, Ruimao Zhang, and Ying Shan. SmartEdit: Exploring Com-
+plex Instruction-based Image Editing with Multimodal Large Language Models. In IEEE Conf.
+Comput. Vis. Pattern Recog., pp. 8362–8371, 2024b.
+Tao Jiang, Peng Lu, Li Zhang, Ningsheng Ma, Rui Han, Chengqi Lyu, Yining Li, and Kai
+Chen. RTMPose: Real-Time Multi-Person Pose Estimation based on MMPose. arXiv preprint
+arXiv:2303.07399, 2023.
+14
+Technical Report
+Zeyinzi Jiang, Chaojie Mao, Yulin Pan, Zhen Han, and Jingfeng Zhang. SCEdit: Efficient and
+Controllable Image Diffusion Generation via Skip Connection Editing. In IEEE Conf. Comput.
+Vis. Pattern Recog., pp. 8995–9004, 2024.
+Diederik P. Kingma and Max Welling. Auto-Encoding Variational Bayes. In Int. Conf. Learn.
+Represent., 2014.
+Alexander Kirillov, Eric Mintun, Nikhila Ravi, Hanzi Mao, Chloe Rolland, Laura Gustafson, Tete
+Xiao, Spencer Whitehead, Alexander C. Berg, Wan-Yen Lo, Piotr Doll´ar, and Ross Girshick.
+Segment Anything. In Int. Conf. Comput. Vis., pp. 4015–4026, 2023.
+KOLORS. KOLORS, https://github.com/Kwai-Kolors/Kolors, 2024.
+Pengzhi Li, QInxuan Huang, Yikang Ding, and Zhiheng Li. LayerDiffusion: Layered Controlled
+Image Editing with Diffusion Models. arXiv preprint arXiv:2305.18676, 2023.
+Zhimin Li, Jianwei Zhang, Qin Lin, Jiangfeng Xiong, Yanxin Long, Xinchi Deng, Yingfang
+Zhang, Xingchao Liu, Minbin Huang, Zedong Xiao, et al. Hunyuan-DiT: A Powerful Multi-
+Resolution Diffusion Transformer with Fine-Grained Chinese Understanding.
+arXiv preprint
+arXiv:2405.08748, 2024.
+Tsung-Yi Lin, Michael Maire, Serge Belongie, James Hays, Pietro Perona, Deva Ramanan, Piotr
+Doll´ar, and C Lawrence Zitnick. Microsoft COCO: Common objects in context. In Eur. Conf.
+Comput. Vis., pp. 740–755, 2014.
+Shilong Liu, Zhaoyang Zeng, Tianhe Ren, Feng Li, Hao Zhang, Jie Yang, Chunyuan Li, Jianwei
+Yang, Hang Su, Jun Zhu, and Lei Zhang. Grounding DINO: Marrying DINO with Grounded
+Pre-Training for Open-Set Object Detection. arXiv preprint arXiv:2303.05499, 2023a.
+Yang Liu, Cheng Yu, Lei Shang, Yongyi He, Ziheng Wu, Xingjun Wang, Chao Xu, Haoyu Xie,
+Weida Wang, Yuze Zhao, Lin Zhu, Chen Cheng, Weitao Chen, Yuan Yao, Wenmeng Zhou, Jiaqi
+Xu, Qiang Wang, Yingda Chen, Xuansong Xie, and Baigui Sun.
+FaceChain: A Playground
+for Human-centric Artificial Intelligence Generated Content. arXiv preprint arXiv:2308.14256,
+2023b.
+Ilya Loshchilov and Frank Hutter. Decoupled Weight Decay Regularization. In Int. Conf. Learn.
+Represent., 2018.
+Chenlin Meng, Yutong He, Yang Song, Jiaming Song, Jiajun Wu, Jun-Yan Zhu, and Stefano Ermon.
+SDEdit: Guided Image Synthesis and Editing with Stochastic Differential Equations. In Int. Conf.
+Learn. Represent., 2021.
+Midjourney. Midjourney, https://www.midjourney.com, 2023.
+Ron Mokady, Amir Hertz, Kfir Aberman, Yael Pritch, and Daniel Cohen-Or. Null-text Inversion for
+Editing Real Images using Guided Diffusion Models. In IEEE Conf. Comput. Vis. Pattern Recog.,
+pp. 6038–6047, 2022.
+Chong Mou, Xintao Wang, Liangbin Xie, Yanze Wu, Jian Zhang, Zhongang Qi, Ying Shan, and
+Xiaohu Qie. T2I-Adapter: Learning Adapters to Dig out More Controllable Ability for Text-to-
+Image Diffusion Models. arXiv preprint arXiv:2302.08453, 2023.
+Alex Nichol, Prafulla Dhariwal, Aditya Ramesh, Pranav Shyam, Pamela Mishkin, Bob McGrew,
+Ilya Sutskever, and Mark Chen. GLIDE: Towards Photorealistic Image Generation and Editing
+with Text-Guided Diffusion Models. arXiv preprint arXiv:2112.10741, 2022.
+OpenAI. DALL·E 2, https://openai.com/dall-e-2, 2022.
+OpenAI. DALL·E 3, https://openai.com/dall-e-3, 2023a.
+OpenAI. GPT-4 Technical Report. arXiv preprint arXiv:2303.08774, 2023b.
+OpenAI. Hello GPT-4o, https://openai.com/index/hello-gpt-4o/, 2024.
+15
+Technical Report
+OpenImage.
+OpenImage, https://storage.googleapis.com/openimages/web/
+index.html, 2023.
+Long Ouyang, Jeffrey Wu, Xu Jiang, Diogo Almeida, Carroll Wainwright, Pamela Mishkin, Chong
+Zhang, Sandhini Agarwal, Katarina Slama, et al. Training language models to follow instructions
+with human feedback. In Adv. Neural Inform. Process. Syst., pp. 27730–27744, 2022.
+Yulin Pan, Chaojie Mao, Zeyinzi Jiang, Zhen Han, and Jingfeng Zhang.
+Locate, Assign,
+Refine: Taming Customized Image Inpainting with Text-Subject Guidance.
+arXiv preprint
+arXiv:2403.19534, 2024.
+William Peebles and Saining Xie. Scalable Diffusion Models with Transformers. In Int. Conf.
+Comput. Vis., pp. 4195–4305, 2023.
+Can Qin, Shu Zhang, Ning Yu, Yihao Feng, Xinyi Yang, Yingbo Zhou, Huan Wang, Juan Car-
+los Niebles, Caiming Xiong, Silvio Savarese, Stefano Ermon, Yun Fu, and Ran Xu. UniCon-
+trol: A Unified Diffusion Model for Controllable Visual Generation In the Wild. arXiv preprint
+arXiv:2305.11147, 2023.
+Alec Radford, Jong Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agar-
+wal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, Gretchen Krueger, and Ilya
+Sutskever. Learning Transferable Visual Models From Natural Language Supervision. arXiv
+preprint arXiv:2103.00020, 2021.
+Colin Raffel, Noam Shazeer, Adam Roberts, Katherine Lee, Sharan Narang, Michael Matena, Yanqi
+Zhou, Wei Li, and Peter J. Liu. Exploring the Limits of Transfer Learning with a Unified Text-to-
+Text Transformer. J. Mach. Learn. Res., pp. 1–67, 2020.
+Ren´e Ranftl, Katrin Lasinger, David Hafner, Konrad Schindler, and Vladlen Koltun. Towards Ro-
+bust Monocular Depth Estimation: Mixing Datasets for Zero-Shot Cross-Dataset Transfer. IEEE
+Trans. Pattern Anal. Mach. Intell., pp. 1623–1637, 2022.
+Robin Rombach, Andreas Blattmann, Dominik Lorenz, Patrick Esser, and Bj¨orn Ommer. High-
+resolution image synthesis with latent diffusion models. In IEEE Conf. Comput. Vis. Pattern
+Recog., pp. 10684–10695, 2022.
+Nataniel Ruiz, Yuanzhen Li, Varun Jampani, Yael Pritch, Michael Rubinstein, and Kfir Aberman.
+DreamBooth: Fine Tuning Text-to-Image Diffusion Models for Subject-Driven Generation. In
+IEEE Conf. Comput. Vis. Pattern Recog., pp. 22500–22510, 2023.
+Chitwan Saharia, William Chan, Saurabh Saxena, Lala Li, Jay Whang, Emily Denton, Seyed Kam-
+yar Seyed Ghasemipour, Burcu Karagol Ayan, S. Sara Mahdavi, Rapha Gontijo Lopes, Tim Sal-
+imans, Jonathan Ho, David J. Fleet, and Mohammad Norouzi. Photorealistic Text-to-Image Dif-
+fusion Models with Deep Language Understanding. In Adv. Neural Inform. Process. Syst., 2022.
+Christoph Schuhmann, Romain Beaumont, Richard Vencu, Cade W. Gordon, Ross Wightman,
+Mehdi Cherti, Theo Coombes, Aarush Katta, Clayton Mullis, Mitchell Wortsman, Patrick
+Schramowski, Srivatsa R. Kundurthy, Katherine Crowson, Ludwig Schmidt, Robert Kaczmar-
+czyk, and Jenia Jitsev.
+LAION-5B: An open large-scale dataset for training next generation
+image-text models. In Adv. Neural Inform. Process. Syst., 2022.
+Shelly Sheynin, Adam Polyak, Uriel Singer, Yuval Kirstain, Amit Zohar, Oron Ashual, Devi Parikh,
+and Yaniv Taigman. Emu Edit: Precise Image Editing via Recognition and Generation Tasks. In
+IEEE Conf. Comput. Vis. Pattern Recog., pp. 8871–8879, 2024.
+Yujun Shi, Chuhui Xue, Jun Hao Liew, Jiachun Pan, Hanshu Yan, Wenqing Zhang, Vincent Y. F.
+Tan, and Song Bai. DragDiffusion: Harnessing Diffusion Models for Interactive Point-based
+Image Editing. In IEEE Conf. Comput. Vis. Pattern Recog., pp. 8839–8849, 2024.
+Gowthami Somepalli, Anubhav Gupta, Kamal Gupta, Shramay Palta, Micah Goldblum, Jonas Geip-
+ing, Abhinav Shrivastava, and Tom Goldstein. Measuring Style Similarity in Diffusion Models.
+arXiv preprint arXiv:2404.01292, 2024.
+16
+Technical Report
+StabilityAI. Stable Diffusion XL Model Card, https://huggingface.co/stabilityai/
+stable-diffusion-xl-base-1.0, 2022.
+StabilityAI.
+CosXL Model Card, https://huggingface.co/stabilityai/cosxl,
+2024.
+Jianlin Su, Yu Lu, Shengfeng Pan, Ahmed Murtadha, Bo Wen, and Yunfeng Liu. RoFormer: En-
+hanced Transformer with Rotary Position Embedding. arXiv preprint arXiv:2104.09864, 2023.
+Keqiang Sun, Junting Pan, Yuying Ge, Hao Li, Haodong Duan, Xiaoshi Wu, Renrui Zhang, Aojun
+Zhou, Zipeng Qin, Yi Wang, Jifeng Dai, Yu Qiao, Limin Wang, and Hongsheng Li. JourneyDB:
+A Benchmark for Generative Image Understanding. In Adv. Neural Inform. Process. Syst., 2023a.
+Ya Sheng Sun, Yifan Yang, Houwen Peng, Yifei Shen, Yuqing Yang, Han Hu, Lili Qiu, and Hideki
+Koike. ImageBrush: Learning Visual In-Context Instructions for Exemplar-Based Image Manip-
+ulation. In Adv. Neural Inform. Process. Syst., 2023b.
+Roman Suvorov, Elizaveta Logacheva, Anton Mashikhin, Anastasia Remizova, Arsenii Ashukha,
+Aleksei Silvestrov, Naejin Kong, Harshith Goka, Kiwoong Park, and Victor Lempitsky.
+Resolution-Robust Large Mask Inpainting With Fourier Convolutions.
+In IEEE Winter Conf.
+Appl. Comput. Vis., pp. 2149–2159, 2022.
+Yuxiang Tuo, Wangmeng Xiang, Jun-Yan He, Yifeng Geng, and Xuansong Xie. AnyText: Multilin-
+gual Visual Text Generation and Editing. In Int. Conf. Learn. Represent., 2023.
+Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez,
+Ł ukasz Kaiser, and Illia Polosukhin. Attention is All you Need. In Adv. Neural Inform. Pro-
+cess. Syst., 2017.
+Haofan Wang, Matteo Spinelli, Qixun Wang, Xu Bai, Zekui Qin, and Anthony Chen.
+In-
+stantStyle: Free Lunch towards Style-Preserving in Text-to-Image Generation. arXiv preprint
+arXiv:2404.02733, 2024a.
+Qixun Wang, Xu Bai, Haofan Wang, Zekui Qin, and Anthony Chen. InstantID: Zero-shot Identity-
+Preserving Generation in Seconds. arXiv preprint arXiv:2401.07519, 2024b.
+Xintao Wang, Liangbin Xie, Chao Dong, and Ying Shan. Real-ESRGAN: Training Real-World
+Blind Super-Resolution with Pure Synthetic Data. In Int. Conf. Comput. Vis., pp. 1905–1914,
+2021.
+Zhizhong Wang, Lei Zhao, and Wei Xing. StyleDiffusion: Controllable Disentangled Style Transfer
+via Diffusion Models. In Int. Conf. Comput. Vis., pp. 7677–7689, 2023.
+Shaoan Xie, Zhifei Zhang, Zhe Lin, Tobias Hinz, and Kun Zhang. SmartBrush: Text and Shape
+Guided Object Inpainting With Diffusion Model. In IEEE Conf. Comput. Vis. Pattern Recog., pp.
+22428–22437, 2023.
+Yunyang Xiong, Bala Varadarajan, Lemeng Wu, Xiaoyu Xiang, Fanyi Xiao, Chenchen Zhu, Xiao-
+liang Dai, Dilin Wang, Fei Sun, Forrest Iandola, Raghuraman Krishnamoorthi, and Vikas Chan-
+dra. EfficientSAM: Leveraged Masked Image Pretraining for Efficient Segment Anything. In
+IEEE Conf. Comput. Vis. Pattern Recog., pp. 16111–16121, 2023.
+Jiacong Xu, Zixiang Xiong, and Shankar P. Bhattacharyya. PIDNet: A Real-time Semantic Seg-
+mentation Network Inspired by PID Controllers. In IEEE Conf. Comput. Vis. Pattern Recog., pp.
+19529–19539, 2023.
+An Yang, Baosong Yang, Binyuan Hui, Bo Zheng, Bowen Yu, Chang Zhou, Chengpeng Li,
+Chengyuan Li, Dayiheng Liu, Fei Huang, Guanting Dong, Haoran Wei, Huan Lin, Jialong Tang,
+et al. Qwen2 Technical Report. arXiv preprint arXiv:2407.10671, 2024.
+Yukang Yang, Dongnan Gui, Yuhui Yuan, Weicong Liang, Haisong Ding, Han Hu, and Kai Chen.
+GlyphControl: Glyph Conditional Control for Visual Text Generation. In Adv. Neural Inform.
+Process. Syst., 2023.
+17
+Technical Report
+Hu Ye, Jun Zhang, Sibo Liu, Xiao Han, and Wei Yang. IP-Adapter: Text Compatible Image Prompt
+Adapter for Text-to-Image Diffusion Models. arXiv preprint arXiv:2308.06721, 2023.
+Xiaohua Zhai, Basil Mustafa, Alexander Kolesnikov, and Lucas Beyer. Sigmoid Loss for Language
+Image Pre-Training. In Int. Conf. Comput. Vis., pp. 11975–11986, 2023.
+Han Zhang, Weichong Yin, Yewei Fang, Lanxin Li, Boqiang Duan, Zhihua Wu, Yu Sun, Hao Tian,
+Hua Wu, and Haifeng Wang. ERNIE-ViLG: Unified Generative Pre-training for Bidirectional
+Vision-Language Generation. arXiv preprint arXiv:2112.15283, 2021.
+Hua Zhang, Si Liu, Changqing Zhang, Wenqi Ren, Rui Wang, and Xiaochun Cao. SketchNet:
+Sketch Classification with Web Images. In IEEE Conf. Comput. Vis. Pattern Recog., pp. 1105–
+1113, 2016a.
+Kai Zhang, Lingbo Mo, Wenhu Chen, Huan Sun, and Yu Su. MagicBrush: A Manually Annotated
+Dataset for Instruction-Guided Image Editing. In Adv. Neural Inform. Process. Syst., 2023a.
+Kaipeng Zhang, Zhanpeng Zhang, Zhifeng Li, and Yu Qiao. Joint Face Detection and Alignment
+Using Multitask Cascaded Convolutional Networks. IEEE Sign. Process. Letters, pp. 1499–1503,
+2016b.
+Lvmin Zhang, Anyi Rao, and Maneesh Agrawala. Adding Conditional Control to Text-to-Image
+Diffusion Models. In Int. Conf. Comput. Vis., pp. 3836–3847, 2023b.
+Shu Zhang, Xinyi Yang, Yihao Feng, Can Qin, Chia-Chih Chen, Ning Yu, Zeyuan Chen, Huan
+Wang, Silvio Savarese, Stefano Ermon, Caiming Xiong, and Ran Xu. HIVE: Harnessing Human
+Feedback for Instructional Visual Editing. In IEEE Conf. Comput. Vis. Pattern Recog., pp. 9026–
+9036, 2024.
+Youcai Zhang, Xinyu Huang, Jinyu Ma, Zhaoyang Li, Zhaochuan Luo, Yanchun Xie, Yuzhuo Qin,
+Tong Luo, Yaqian Li, Shilong Liu, Yandong Guo, and Lei Zhang. Recognize Anything: A Strong
+Image Tagging Model. arXiv preprint arXiv:2306.03514, 2023c.
+Haozhe Zhao, Xiaojian Ma, Liang Chen, Shuzheng Si, Rujie Wu, Kaikai An, Peiyu Yu, Minjia
+Zhang, Qing Li, and Baobao Chang. UltraEdit: Instruction-based Fine-Grained Image Editing at
+Scale. arXiv preprint arXiv:2407.05282v1, 2024.
+Shihao Zhao, Dongdong Chen, Yen-Chun Chen, Jianmin Bao, Shaozhe Hao, Lu Yuan, and Kwan-
+Yee K. Wong. Uni-ControlNet: All-in-One Control to Text-to-Image Diffusion Models. In Adv.
+Neural Inform. Process. Syst., 2023.
+Yiming Zhao and Zhouhui Lian. UDiffText: A Unified Framework for High-quality Text Synthesis
+in Arbitrary Images via Character-aware Diffusion Models. In Eur. Conf. Comput. Vis., 2024.
+18
+Technical Report
+A
+RELATED WORK
+Visual generation, which takes multi-modal conditions (e.g., textual instruction and reference image)
+as input to generate creative image, has emerged as a popular research trend in recent years. As
+the basic task, text-guided image generation has undergone a significant development, marked by
+remarkable advancements in recent years. Many approaches (Nichol et al., 2022; Saharia et al.,
+2022; OpenAI, 2022; Rombach et al., 2022; StabilityAI, 2022; OpenAI, 2023a; Midjourney, 2023;
+Cloud, 2023; Zhang et al., 2021; Chen et al., 2023a; Esser et al., 2024; KOLORS, 2024; Li et al.,
+2024; FLUX, 2024) have been proposed and achieved impressive results in terms of both image
+quality and semantic fidelity. By incorporating low-level visual features as input, Huang et al.
+(2023) and Zhang et al. (2023b) pave the way for the initial forms of multi-modal controllable
+generation. Recently, some approaches (Mou et al., 2023; Zhao et al., 2023; Qin et al., 2023)
+have tried to use multiple visual features as conditions, facilitating the multi-modal controllable
+generation. By integrating fine-tuning technologies such as Ruiz et al. (2023); Hu et al. (2022), these
+approaches have further enabled the customization of diverse controllable generation applications.
+Another popular trend is image editing technology (Ye et al., 2023; Han et al., 2024; Wang et al.,
+2024b; Huang et al., 2024a; Wang et al., 2024a; Liu et al., 2023b; Tuo et al., 2023; Chen et al.,
+2023b; Pan et al., 2024; Wang et al., 2023; Xie et al., 2023; Sun et al., 2023b; Huang et al., 2024b;
+Bodur et al., 2024; Shi et al., 2024; Li et al., 2023; Meng et al., 2021), which focus on editing input
+images according to text prompts and preserving some identity such as person, scene, subject, or
+style. While the above models excel at generating image in one specific task or scenario, they have
+difficulty in extending to unseen tasks. To address the aforementioned challenges, some methods
+have been introduced to edit input images by following natural language instructions (Brooks et al.,
+2023; StabilityAI, 2024; Geng et al., 2024; Sheynin et al., 2024; Zhao et al., 2024; Ge et al., 2024b)
+which is more flexible to implement various tasks within a single model. However, a key bottleneck
+for these methods lies in the construction of high-quality instruction-paired datasets with annotated
+edits, which cause limited generalizability and suboptimal performance. In this paper, we focus
+on establishing a unified definition for multi-modal generation problems. Based on this definition,
+we aim to construct higher-quality, annotated data and instruction sets further to develop a unified
+foundational model for multimodal generation.
+B
+DATASETS DETAIL
+We use an internal dataset of 0.7 billion data pairs to train a foundational model for generation and
+editing. The supported tasks include 8 basic types consisting of 37 subtasks, as well as a multi-
+turn and long-context generation task. These tasks use textual instructions along with zero or more
+reference images for generating or editing image. The data distribution is depicted in Fig. 6a, and
+the absolute data scale is illustrated in Fig. 6b. In this section, we provide a detailed introduction to
+the data construction methods for various tasks.
+B.1
+TEXT-GUIDED GENERATION
+We collect approximately 117 million images and use MLLM model to supplement captions for
+images, creating pair data for text-to-image tasks. Additionally, this portion of the data serves as an
+intermediary bridge in various generation and editing tasks, allowing the combination of different
+task instructions to obtain pairs from original images to target images.
+B.2
+LOW-LEVEL VISUAL ANALYSIS
+Low-level Visual Analysis tasks involve analyzing and extracting various low-level visual features
+from a given image, like an edge map or segmentation map. These low-level visual features are
+typically employed as control signals in the controllable generation. We select 10 commonly used
+low-level features in the controllable generation, including segmentation map, depth map, human
+pose, mosaic image, blurry image, gray image, edge map, doodle image, contour image, and scribble
+image. The visual features extracted at global and local levels are illustrated in Fig. 7 and Fig. 8,
+respectively.
+19
+Technical Report
+Text-guided Generation
+Low-level Visual Analysis
+Controllable Generation
+Repainting
+Reference Generation
+Semantic Editing
+Element Editing
+Long Context Learning
+Layers Editing
+Global
+Local
+a. The  distribution of all tasks in the dataset
+b. The data scale of basic tasks in the dataset
+Figure 6: Statistics on the data scale for various tasks. We collect 0.7 billion data pairs, which
+cover 8 basic types including 37 subtasks, multi-turn and long-context generation datasets.
+• Image Segmentation involves extracting image spatial region information for different targets
+within an image. This is achieved by selecting and modifying specific areas for operations and
+editing in downstream tasks. We employ the Efficient SAM (Xiong et al., 2023) tool for marking
+different target areas within an image.
+• Depth Estimation indicates the relative distance information of different targets within an image.
+We use the Midas (Ranftl et al., 2022) algorithm to extract depth information.
+• Human-pose Estimation is employed for modeling the human body to obtain structured infor-
+mation about body posture. We make use of the RTMPose (Jiang et al., 2023) algorithm to extract
+information from images containing human figures, and posture information visualization is done
+using OpenPose’s 17-point (Cao et al., 2021) modeling method.
+• Image Mosaic pixelates specific areas or the entire image to protect sensitive information.
+• Image Degradation is used to degrade the quality of an image to simulate the phenomenon
+of image distortion found in the real world. Following the practice of super-resolution algo-
+rithms (Wang et al., 2021), we add random noise to the input images.
+• Image Grayscale is typically done to facilitate the editing of an image’s original colors down-
+stream. We do this conversion directly using OpenCV’s Grayscale function.
+• Edge Detection detects the edge information from the original image. We utilize the edge detec-
+tion method named Canny (Canny, 1986) implemented by OpenCV.
+• Doodle Extraction is usually used to simulate relatively rough hand-drawn sketches by extract-
+ing the outline of objects and ignoring their details. We use the PIDNet (Xu et al., 2023) and
+SketchNet (Zhang et al., 2016a) to extract this information.
+• Contour Extraction is about delineating the outline of targets within an image, which simulates
+the drawing process of the image and is often used for secondary processing of images. We use the
+contour module from the informative drawing (Chan et al., 2022) for this information extraction.
+• Scribble Extraction involves retrieving the original line art information to capture the sketch-like
+form of the image. We utilize the anime-style module from informative drawings (Chan et al.,
+2022) to extract the relevant information.
+20
+Technical Report
+Source Image
+Image 
+Segmentation
+Depth 
+Estimation
+Human-pose 
+Estimation
+Image Mosaic
+Image 
+Degradation
+Source Image
+Image 
+Grayscale
+Edge 
+Extraction
+Doodle 
+Extraction
+Contour
+Extraction
+Scribble
+Extraction
+Figure 7: The visualization of low-level visual analysis preprocessing.
+Source Image
+Image 
+Segmentation
+Depth 
+Estimation
+Image Mosaic
+Image 
+Degradation
+Image 
+Grayscale
+Edge 
+Detection
+Doodle 
+Extraction
+Contour 
+Extraction
+Scribble
+Extraction
+Figure 8: The visualization of regional low-level visual analysis preprocessing.
+B.3
+CONTROLLABLE GENERATION
+In the realm of vision-based generative foundation models, the ability to generate corresponding
+content using any provided prompts is commonly present. To further control aspects such as spatial
+layout, structure, or color in the generated images, additional conditional information is often incor-
+porated as inputs to the model. We integrate various controllable condition-to-image tasks within a
+unified framework to accommodate different visual conditions. The control conditions include the
+visual features mentioned in the low-level visual analysis section. For training data, we employ pairs
+constituted by the aforementioned control conditions in Fig. 7 and regional control conditions in
+Fig. 8 obtained through low-level visual analysis, using the conditional part as inputs to the model
+to achieve pixel-precise image generation. For text guidance, we construct the instructions based on
+image captions with our proposed Instruction Captioner.
+B.4
+SEMANTIC EDITING
+Semantic Editing aims to modify specific semantic attributes of an input image by providing detailed
+instructions. It involves facial editing, which aims to modify partial attributes of characters while
+preserving the overall identity, and style transforming, which aims to transform the image style to a
+specific artist theme guided by instruction while keeping content unchanged. Additionally, any other
+semantic editing requests that do not fall into these two categories are classified as general editing,
+e.g., changing the background scene of an image, adjusting a subject’s posture, and modifying the
+camera view. We discuss the specifics according to the particular tasks.
+21
+Technical Report
+Binary
+Classifiers
+Training
+Inference
+Add Trainset
+Select
+Face Generative
+Modules
+(Instantid et al)
+Union-
+Find
+K-Means
+Manual
+Annotation
+(a) aligned facial data
+(b) misaligned facial data 
+Diversity
+Prompts
+Self-Iteration
+N-turns
+Facial Group
+Distinct
+Filter
+Figure 9: Illustration of facial editing data processing workflow.
+Facial Attributes 
+Preservation(a)
+Instruction: Make the characters in the {image} smile naturally.
+Facial Attributes 
+Transformation(b)
+Source Image
+Target Image
+Instruction: Add beard on the character of {image}.
+Source Image
+Target Image
+Instruction: Beautify the character in the {image}, making his skin 
+delicate and radiant.
+Source Image
+Target Image
+Instruction: Change the hair color of the character in {image} be 
+bright pink.
+Source Image
+Target Image
+Source Image
+Target Image
+Source Image
+Target Image
+Source Image
+Target Image
+Source Image
+Target Image
+Source Image
+Target Image
+Source Image
+Target Image
+Source Image
+Target Image
+Source Image
+Target Image
+Aligned Facial Data
+Misaligned Facial Data
+Instruction: Maintain consistent facial features and transform the characters in the {image} into……
+Instruction: Preserve the face, change the characters in the {image} to ……usually change the pose. 
+Figure 10: The dataset visualization of facial editing.
+B.4.1
+FACIAL EDITING
+Facial Editing encompasses both the transformation and preservation of facial attributes. Specif-
+ically, the facial attributes preservation task focuses on editing other elements of the image while
+maintaining the consistency of complex identity details in facial representations. The facial attributes
+transformation task is primarily concerned with altering specific attributes of the face without affect-
+ing other aspects of the image.
+Facial Attribute Preservation. The facial attribute preservation dataset is divided into two main
+parts: aligned and misaligned facial data as shown in Fig. 10a. There are two novel processing
+workflows as shown in Fig. 9. (i) Aligned facial data. We generate pixel-aligned face data using
+generative models such as InstantID (Wang et al., 2024b) and combine it with GPT models to pro-
+duce diverse prompts. Subsequently, we train multiple lightweight binary classification models to
+clean the generated data based on image quality, PPI score, aesthetic scores, and other metrics. Ad-
+ditionally, we extract facial features using ArcFace (Deng et al., 2019a) for similarity calculations,
+selecting high-matching data pairs with a similarity score exceeding 0.65. Once our model demon-
+strates the ability to maintain facial integrity, we initiate a self-iterative training process to generate
+higher quality data, as illustrated in Fig. 9a. (ii) Misaligned facial data.
+We first employ a face
+detection algorithm (Zhang et al., 2016b) to filter images containing only one face. Subsequently,
+we utilized facial features to perform K-means clustering, resulting in 10,000 clusters. Within each
+22
+Technical Report
+Instruction 
+Alter the appearance of 
+{image} to resemble the 2D 
+anime style.
+Source Image
+Target Image
+Instruction 
+Let's impart a 2D pixel art 
+flair to {image}. 
+Source Image
+Target Image
+Instruction 
+Render {image} in the style 
+of Acrylic Painting.
+Source Image
+Target Image
+Give {image} the flavor of 
+rollerball pen.
+I'd like to see {image} with 
+the aesthetic qualities of 
+emblem logo.
+Adapt the {image} to match 
+the aesthetic of 2D cartoon.
+Figure 11: The dataset visualization of style editing.
+cluster, we conducted a second clustering using the union-find algorithm. Faces with a similarity
+score greater than 0.8 and less than 0.9 were linked to avoid grouping perfectly identical images.
+Finally, manual annotation and deduplication were performed on the remaining clusters, yielding
+the final unaligned facial dataset as shown in Fig. 9b. Based on the general instruction construction
+process in Sec. 3.2, we design the instructions for facial editing to emphasize that the individuals in
+the image pairs being annotated are the same person. The instructions must reflect this and focus on
+the differences in personal details between the two images.
+Facial Attribute Transformation. We add four fine-grained facial attribute transformation tasks:
+smiling, beard, makeup, and hair dyeing. We obtained the relevant data in bulk by calling the Aliyun
+API and trained binary classifiers for each category to filter out data with indistinct changes. As a
+result, we acquired a total of 1.4 million high-quality pairs of data as shown in Fig. 10b. Equally, we
+strive to guide the generated captions to closely reflect the facial attributes, thereby enhancing the
+model’s understanding of the similarities and differences in tasks related to facial attributes.
+B.4.2
+STYLE EDITING
+Following the similar image pair construction strategy from StyleBooth (Han et al., 2024), we pre-
+pare a larger training data that encompasses over 80 styles and 63000 image pairs. Besides, addi-
+tional real-world and synthesized style images are collected as style editing target images, and their
+corresponding “original” images are generated by transforming these collected images to different
+graphic styles such as cinematic, photography, etc. In this way, we obtain around 70000 input and
+output image pairs of about 400 high-quality styles. We show samples of the final style editing data
+in Fig. 11.
+We conduct different filter strategies to leverage the data quality: (i) Like StyleBooth, we use CLIP
+score as the metric to filter out the image pairs which have too minor or too great differences. (ii)
+To further filter out the faultful synthesized target images that are not particularly aligned with the
+provided prompt keywords in terms of style, we use CSR (Somepalli et al., 2024) representations
+and implement style clustering within every style subgroup. Setting a threshold of 0.65, cosine
+similarities are calculated for union-find clustering. The largest cluster contains images in a similar
+visual style while other clusters are filtered out.
+B.4.3
+GENERAL EDITING
+The objective of general editing is to curate an image that seamlessly harmonizes with both textual
+and visual prompts for a variety of purposes. It involves two tasks, i.e., caption-guided image gener-
+ation and instruction-guided image adaption. The former task receives one reference image and one
+caption as prompts to generate the image, and the latter task intends to adapt the source image by
+following the given instructions. The training data for these two tasks can be unified into the same
+format, which consists of a content-related image pair (Isource, Itarget), and a text prompt indicates
+how to generate target image. An essential goal of building such a training dataset is to acquire
+content-related image pairs, one of which serves as the source image and another serves as target
+image. The overall dataset construction pipeline is depicted in Fig. 12. It includes two branches,
+i.e., clustering-based method, and synthesis-based method.
+23
+Technical Report
+Pairwise
+combination
+Content
+relevance
+filter
+Clustering-based method
+Synthesis-based method
+K-means
+clustering
+Union-find
+IP-adapter
+Content
+relevance
+filter
+Training Pairs
+Figure 12: The dataset construction pipeline for general editing task.
+Instruction 
+A Boston Terrier and a black 
+mixed breed dog are sitting in 
+a white wicker basket against 
+a red background. Both dogs 
+are wearing red Santa hats 
+and the Boston Terrier is also 
+wearing a red plaid bow tie. A 
+Christmas tree decorated with 
+colourful baubles stands in the 
+background.
+Cluster-based
+Source Image
+Target Image
+Instruction 
+This image depicts a young 
+woman sitting on the ground 
+with a smile on her face, 
+petting a fluffy white Samoyed 
+dog. She is wearing a white 
+hoodie and blue jeans, her 
+auburn hair tied up in a loose 
+bun.
+Source Image
+Target Image
+Instruction 
+A family of three are walking 
+hand-in-hand down a busy city 
+street, with happy smiles on 
+their faces. They are all 
+wearing hats, with the father 
+in an olive green jacket, the 
+child in a mustard yellow 
+jacket, and the mother in a 
+grey coat. The street is 
+decorated with bright lights 
+and shop windows can be seen 
+in the background. The mother 
+is holding a few shopping bags.
+Source Image
+Target Image
+Boy and girl, 2d anime, 
+journey, adventure, universe, 
+colorful, no text, words, 
+watermarks
+Synthesis-based
+fighting girl, Takehiko Inoue 
+Style, anime color, vibrant, 
+fighting pose
+beautiful urban italian 
+landscape painting with a 
+palette knife
+Figure 13: General editing sample pairs generated by our dataset construction pipeline. Image
+pairs in the first row are generated by cluster-based method, and those in the second row are gener-
+ated from synthesis-based method.
+Cluster-based method. We employ embedding-based clustering on the database to group content-
+similar images. Union-find technology is employed inside each cluster to achieve more fine-grained
+image pair aggregation. We then collect all possible pairs from each disjoint set. Additionally, a
+binary classifier evaluates the content relevance of pairs, and those with low relevance are discarded.
+Synthesis-based method. We use IP-Adapter technology to synthesize images according to the
+reference images and text prompts, thus the content-related image pairs can be obtained. To en-
+sure visual content is similar but not the same, we set the image control strength λ to 0.6, and a
+binary classifier is utilized to filter out content-unrelated pairs. We depict some generated samples
+in Fig. 13.
+For the text prompt of each image pair, we use the MLLM to generate both a caption that describes
+the visual content of the target image, and an instruction that indicates how to adapt the source image
+to the target image, as described in Sec. 3.2.
+B.5
+ELEMENT EDITING
+Element editing focuses on the selective manipulation of specific subjects within an image. This
+process allows for the addition, deletion, or replacement of a particular subject while ensuring that
+the other elements within the image remain unchanged. By doing so, the integrity of the overall com-
+24
+Technical Report
+OCR
+Filter
+Quality
+Classifier
+Text Remove Routine
+Text Render Routine
+OCR
+detection
+Image
+Inpainting
+Text
+Render
+OCR
+Filter
+Text Images
+No-Text Images
+Training Pairs
+Figure 14: The pipeline of building training data of text editing.
+Instruction: Inscribe the text “DFTBA” into the {image}
+Text Render
+Source Image
+Target Image
+Instruction: Modify the {image} by instilling text “Bible” at the 
+locale marked by mask
+Source Image
+Target Image
+Instruction: Place text “情满车船” at a suitable location within 
+the {image}
+Source Image
+Target Image
+Instruction: Proceed to render text “东办” in {image} according 
+to the position given by mask
+Source Image
+Target Image
+Instruction: Expunge all lettering from {image}
+Text Remove
+Source Image
+Target Image
+Instruction: Expunge the lettering within mask from the 
+{image}
+Source Image
+Target Image
+Instruction: Purge all the wording from {image}
+Source Image
+Target Image
+Instruction: Excise the text from the mask portion of the 
+{image}
+Source Image
+Target Image
+Figure 15: The dataset visualization of multi-lingual text editing.
+Instruction 
+Template: Render the text 
+“hGQJoucl” at a strategic 
+point on the {image}
+MLLM: the golden text 
+'hGQJoucl' needs to be 
+added to the bottom right of 
+the image
+Source Image
+Target Image
+Instruction 
+Source Image
+Target Image
+Instruction 
+Source Image
+Target Image
+Template: Render the  
+given text “YBvee” onto a 
+conducive area on  {image}
+MLLM: add white text 
+'YBvee' at the top of the 
+image with a background of 
+a soft pink-toned fabric.
+Template: On {image}, 
+overlay the text “XhBFA” at 
+a suitable location
+MLLM: add the text 
+'XhBFA' with a gradient 
+effect from blue to yellow to 
+red, making the colors 
+vibrant. 
+Figure 16: Template-based instructions and MLLM-based instructions on text editing.
+position is preserved, allowing users to make precise edits and achieve desired alterations without
+disrupting the context of the original scene. We focus on two common elements: text and objects.
+B.5.1
+TEXT EDITING
+Text editing is an important task of element editing. Despite the progress gained in image generation,
+the capability of text rendering is still far from satisfying. Therefore, text editing is a necessary
+technology to revise the incorrect or deformed text rendered in image. Text editing involves text
+removing task, which is to erase text from image while preserving all other visual cues, and text
+rendering task, which is to render specific text at any location of an image. The goals of these two
+tasks are exactly the opposite, hence their training data can be shared to each other. For instance,
+for any image pair {Ia, Ib}, suppose the text removing represents the generation direction from Ia
+to Ib, on the contrary, the generation direction from Ib to Ia stands for text rendering. Therefore,
+the objective of constructing the dataset thus becomes how to obtain a large number of image pairs,
+where one image contains the specified text and the other does not while keeping the non-text content
+unchanged.
+We propose a two-branch data collection method to address this issue. The overall pipeline shown
+in Fig. 14 includes two paths: (i) Text remove path. For images containing text data, which typi-
+25
+Technical Report
+A pumpkin and ghostly 
+lollipop stuck in the glass
+pumpkin
+ghost
+glass
+Grounded
+SAM
+RAM
+…
+Object Filter
+LaMa
+Quality
+Filter
+remove an object
+remove some objects
+remove all objects
+Caption
+Instruction
+Figure 17: Illustration of data construction pipeline for object editing in element editing.
+Instruction: Please remove bird from {image}.
+Object Removal 
+Source Image
+Target Image
+Instruction: Take right illustration out and refine 
+{image}.
+Source Image
+Target Image
+Instruction: Would you please remove the person in the 
+{image}, based on the mask?
+Source Image
+Target Image
+Instruction: Please clear the elements found in the mask 
+area of {image}.
+Source Image
+Target Image
+Instruction: Insert the glass bottle into the {image}.
+Object Addition
+Source Image
+Target Image
+Instruction: 
+Add a teapot to {image}.
+Source Image
+Target Image
+Instruction: Please add tree to {image}, focusing on the 
+area indicated by mask.
+Source Image
+Target Image
+Instruction: Kindly add some cookies to {image}, 
+making sure it aligns with the mask area.
+Source Image
+Target Image
+Global Editing
+Local Editing
+Figure 18: The dataset visualization of object editing in element editing.
+cally from publicly available text datasets such as AnyWord3M (Tuo et al., 2023) and LaionGlyph-
+10M (Yang et al., 2023), we first mask out all text regions. Then, we redraw the masked areas
+leveraging image inpainting method. To ensure the regenerated image does not contain any tex-
+tual information, we employ OCR detection leveraging the open-sourcing OCR model (e.g., PP-
+OCR) (Du et al., 2020) and filter out all images that contain any texts. Finally, we adopt an image
+quality score predictor which is trained with small amounts of manually annotated data to score all
+text-removed images and pick high-quality samples according to the score. (ii) Text render path.
+For any image dataset, We first employ OCR detection to ensure input images contain no text. Then
+random characters are rendered in random locations of these images by utilizing existing text editing
+methods (e.g., AnyText) (Tuo et al., 2023). We render text using Chinese or English characters to
+support multi-lingual text rendering capability. We depict some cases in Fig. 15. Finally, we im-
+plement OCR detection on the edited image to ensure all characters are rendered correctly. When
+training, image pairs collected from both two paths are merged to form the total dataset.
+We adopt template-based and MLLM-based methods to construct instructions that describe how
+to render or remove text from the input image. For MLLM-based method, besides the content of
+characters, we add extra color and position controls by specifying the text color and render position
+in the textual instruction. Given a text image, we utilize a pre-trained MLLM to describe the color,
+content, and position information of text in this image, thus a text editing instruction can be easily
+inferred based on these descriptions. Some cases of template-based and MLLM-based instructions
+are illustrated in Fig. 16.
+B.5.2
+OBJECT EDITING
+Object-based image editing is one of the most commonly used techniques for creatively manipulat-
+ing images. Its primary goal is to either remove or add objects in an image based on text instructions
+provided by the user, while ensuring a harmonious composition. To obtain training data for this task,
+we need to construct a pair of data to indicate the presence relationship of objects. Specifically, we
+26
+Technical Report
+Inpainting
+Instruction: Could you expand the {image} in the designated
+mask section?
+Outpainting
+Source Image
+Target Image
+Instruction: Within the boundary of mask, please amplify
+{image} size while preserving its original details.
+Source Image
+Target Image
+Instruction: Enlarge the {image} found within the boundaries set
+by the mask, but also keeping the original one intact.
+Source Image
+Target Image
+Instruction: Are you able to expand the {image} within the
+mask area and keep its original format?
+Source Image
+Target Image
+Source Image
+Target Image
+Source Image
+Target Image
+Source Image
+Target Image
+Source Image
+Target Image
+Uconditional Inpainting
+Text-Guided Inpainting
+Instruction: 
+The mask designations on the {image} require 
+repainting.
+Instruction: Modify the mask section of the {image} such that it 
+corresponds with the "A distinctive part of her 
+attire is a golden, wide collar around her neck, with 
+a prominent central element. The collar displays 
+similar artistry to the armor."
+Instruction: Recreate the mask areas in {image} to mirror the
+details specified in "A massive ice cube with the
+word 'TUPLES' engravd on it is inside the bottle. It
+has a red-orange color and the word is stylized in a
+gradient from white to blue."
+Instruction: Kindly rework the {image} in areas highlighted 
+by the mask.
+Figure 19: The dataset visualization of Repainting.
+focus on images that either contain a specific object or do not, ensuring that all other parts of the
+images remain as unchanged as possible, except for the area where the object is located.
+We can see the entire dataset process from Fig. 17. We first utilize RAM (Zhang et al., 2023c) for
+open-label tagging, obtaining semantic labels for different subjects in the image, and then applying
+Grounded-SAM (Liu et al., 2023a; Kirillov et al., 2023) to segment the input semantics. Next,
+we perform a preliminary screening of objects based on filtering criteria including the area of the
+masks and bounding boxes, as well as their effective ratios, removing any unreasonable subjects.
+We then use the LaMa (Suvorov et al., 2022) method, combining the original image with the subject
+mask area for inpainting. This operation effectively removes local objects without significantly
+affecting other areas. Finally, we employ a pre-trained binary classification model to determine
+whether the inpainted image meets expectations, filtering out artifacts introduced by the inpainting
+algorithm. In terms of instruction formulation, we employ a template format that incorporates the
+{object name} tag, while also utilizing a common instruction based on image pairs.
+Through the data construction pipeline, we can obtain the original image, the image with the object
+removed, the object mask, and the corresponding text instructions. This way, we can implement a
+forward pipeline for object removal and a reverse pipeline for object addition, while ensuring the
+integrity of the image and the accuracy of the text instructions, as in Fig. 18.
+B.6
+REPAINTING
+The repainting task can be defined as the process of reconstructing missing image information within
+specified masked regions. Depending on the location of the masked area and input conditions, this
+task can be categorized into three distinct types: unconditional inpainting, text-guided inpainting,
+and outpainting. Some examples of training data are shown in Fig. 19.
+B.6.1
+UNCONDITIONAL INPAINTING
+Unconditional image inpainting typically utilizes methods such as low-level textual information and
+Fourier Convolutions, combined with contextual information from the known areas of the image,
+to reconstruct the missing portions. This process usually requires an input consisting of an image
+to be inpainted and a mask indicating the regions that need to be filled, leading to an output image
+where the missing areas are completed. The task demands that the original information is preserved
+and that there is a high-quality seamless integration between the original and the filled-in areas. By
+employing LaMa’s (Suvorov et al., 2022) mask generation strategy, we randomly apply bbox or
+irregular-shaped masks to the images and vary the degree of this operation to enable the model to
+handle different types of missing regions as effectively as possible.
+B.6.2
+TEXT-GUIDED INPAINTING
+Text-guided inpainting primarily aims to fill and restore missing parts of an image by utilizing text
+descriptions to guide the process. Unlike traditional unconditional inpainting, this method inte-
+grates textual information to guide the model, resulting in images that better meet the user’s specific
+27
+Technical Report
+Layer Decouple
+ACE
+Seg
+Segmentation Map
+ACE
+Layer
+ACE
+Layer
+ACE
+Layer
+Layer1 BG & FG
+Layer2 BG & FG
+Layer3 BG & FG
+Layer Fusion
+ACE
+Layer
+FG-1
+FG-2
+FG-3
+BG-1
+Complete the {image}.
+To fuse {image}, {image1}, {image2} with {image3}.
+Figure 20: Illustration of inference pipeline layer decouple and layer fusion in layer editing.
+Layer Decouple
+Origin Image
+Source Image
+Instruction: Complete the {image}.
+Target Image
+Source Image
+Target Image
+Origin Image
+Instruction: Complete the {image}.
+Instruction: To fuse {image} with {image1}.
+Layer Fusion
+Source Image 1
+Target Image
+Instruction: 
+Foreground Layering
+Instruction: Complete the {image}.
+Background Layering
+Source Image 2
+Instruction: To fuse {image} into {image1}.
+Source Image 1
+Target Image
+Source Image 2
+Source Image 1/2/3
+Target Image
+To fuse {image}, {image1}, {image2}.
+Figure 21: Sample data for training layer decouple and layer fusion in layer editing.
+requirements. In constructing this dataset, we not only employ random masks paired with corre-
+sponding textual descriptions of the original images but also refine the process to focus on local
+regions. First, we obtain multiple object masks from the image, and then extract detailed textual
+descriptions for each object. Finally, we create triplets consisting of the original image, the local
+object mask, and the local object caption. This approach enables the generation of richer and more
+controllable details within local areas.
+B.6.3
+OUTPAINTING
+The outpainting task involves intelligently generating and completing the edge regions of an existing
+image so that the extended new image appears natural and continuous visually. The major challenge
+of this task is producing images that are rich in detail, diverse in content, and exhibit a certain level of
+associative ability. In terms of data processing, we employed commonly used techniques, applying
+random masks to the areas and directions that need to be expanded, in order to adapt to different
+scenarios of image completion.
+B.7
+LAYER EDITING
+Hierarchical layer editing operations on images involve two aspects: (i) Layer decouple: enables
+the separation of the main subject within a single image, resulting in a complete subject and a
+reconstructed background. The subject must be restored to its complete form, mitigating any gaps
+caused by occlusion or other reasons present in the original image. Meanwhile, the background
+is filled in for the blank areas left after the subject’s separation, achieving a fully deconstructed
+fore/background. (ii) Layer fusion: allows for the incorporation of distinct independent subjects
+into a target image, facilitating high-quality image integration. The inference pipeline can be seen
+in Fig. 20.
+For the data construction, we follow the data workflow from the object editing task, focusing on
+slightly larger subjects and data containing multiple subjects within a single image. This approach
+28
+Technical Report
+Instruction 
+Accurately place the face 
+from {image} into {image1} 
+within the designated mask 
+area.
+Face Swap
+Source Image
+Target Image
+Instruction 
+Merge the face found in 
+{image} into {image1} at the 
+specified mask location.
+Source Image
+Target Image
+Change the cloth in {image} 
+to the one in {image1}, 
+based on "In the image, 
+there is a woman with her 
+hair tied up in a bun, 
+wearing a short-sleeved, 
+pink round neck T-shirt 
+that looks comfortable and 
+relaxed. She\'s also 
+wearing a pair of navy blue 
+striped joggers secured at 
+the waist with an elastic 
+cord and a sliding 
+drawstring. Her gaze is 
+directed to the right with a 
+natural expression."
+Tryon
+Change the cloth in {image} 
+to the one in {image1}, based 
+on "A man stands against a 
+light-colored background 
+wearing a white shirt with a 
+black band and black cuffs 
+on the his right. The shirt 
+right chest of the shirt has 
+the number '1901’ printed on 
+it and its hem is turned out. 
+He wears dark jeans with a 
+white strip going down the 
+side, along with black 
+sneakers. His left hand is 
+slightly touching his right 
+wrist and is crossed in front 
+of his body. "
+Apply the style 
+characteristics of {image} to 
+{image1}.
+Style Reference 
+Editing
+Reinterpret {image} to align 
+with the artistic direction of 
+{image1}.
+Multi-Control Generation
+Instruction 
+{image}{image1}{image2}
+{image3}{image4}{image5}, 
+A woman is modeling a 
+long, white, puffer jacket. 
+The jacket is made of a 
+shiny, quilted material and 
+has a high collar. The 
+collar is lined with a soft, 
+gray fur. The jacket is long-
+sleeved and has a zippered 
+front closure. The woman is 
+wearing black pants and is 
+standing with her back to 
+the camera. The 
+background is white.
+Multiple Condition Images
+Target Image
+{image}{image1}, The image 
+depicts a man with a 
+backpack walking across a 
+bridge suspended high 
+above a rocky canyon 
+during a beautiful sunset. 
+The bridge appears to be 
+made of wood and is 
+supported by ropes and 
+pulleys. The sky is painted 
+with warm colors from the 
+setting sun, creating a 
+serene atmosphere. 
+{image}{image1}, A 
+digital illustration of a 
+chimpanzee dressed as a 
+human, riding a 
+motorcycle through an 
+abstract cityscape.
+Instruction 
+Target Image
+Instruction 
+Target Image
+Multiple Condition Images
+Multiple Condition Images
+Series Generation
+{image}{image1}{image2}
+{image3}{image4}
+{image5}, A young 
+woman wearing a red 
+bubble-sleeved dress and 
+a pearl necklace leans on 
+a white sofa, gently 
+touching the Christmas 
+tree beside her. Her gaze 
+is focused, as if admiring 
+the decorations on the 
+tree.
+Instruction 
+Target Image
+Series Images
+{image}{image1}{image2}
+{image3}{image4}
+{image5}, A cute cartoon 
+penguin in a blue coat, 
+red mittens, and boots, 
+wearing a peach hat, 
+looks sleepy and is 
+yawning.
+Figure 22: The dataset visualization of multi-reference.
+creates compositions that allow for a lossless splitting of a single original image into multiple sub-
+images, and conversely establishes a correspondence for combining several images into one. Specif-
+ically, as shown in Fig. 21, in layer decouple stage, we follow the instructions to transition from the
+original image to either a singular subject or a singular background. During training, the non-subject
+areas of the subject image and the incomplete portions of the background are filled with white color.
+Additionally, to simulate the scenario of subjects obscured in the image, we perform random mask-
+ing on the extracted subject images. The output targets are the complete subject or background. In
+layer fusion stage, we employ a multi-reference image strategy, taking single or multiple subjects
+along with the background as inputs to guide the generation of the target image. Similarly, different
+subjects are supplemented with white color and placed on a randomly sized white canvas, with the
+training goal being to generate a harmonious and complete composite image.
+B.8
+REFERENCE GENERATION
+Ordinary image generation and editing tasks require no more than one input image. Under certain
+circumstances, image generation needs multiple image inputs, such as multiple conditions in con-
+29
+Technical Report
+Source Image
+Caption: {image}, a hand 
+holding a knife, about to 
+cut a half mango placed on 
+a bamboo cutting board. 
+The other half of the 
+mango is placed beside it.
+Multi-turn
+Instruction-1
+Turn-1 Image
+Instruction-2
+Turn-2 Image
+Instruction-3
+Turn-3 Image
+Instruction: {image1}, Cut 
+the mango into three parts.
+Caption: {image2}, a hand 
+holding a knife, about to 
+cut the middle part of the 
+mango placed on a bamboo 
+cutting board.
+Instruction: {image3}, 
+adjust the hand posture, 
+using a knife to cut a slice 
+of mango off the skin.
+Instruction-4
+Turn-4 Image
+Instruction: {image}, need 
+to replace the apple with a 
+peach and change the 
+pattern on the clothes from 
+apples to strawberries.
+Instruction: {image1}, need 
+to replace the peach with a 
+strawberry and change the 
+color of the clothes from blue 
+to pink.
+Instruction: {image2}, 
+need to replace the 
+strawberry with a 
+watermelon, the clothes 
+color to green, and the 
+pattern on the clothes to 
+a watermelon pattern.
+Instruction: {image3}, need 
+to replace the watermelon 
+with a pineapple and 
+change the color of the 
+character's clothes from 
+green to purple.
+[{image}, a cartoon 
+portrait of a young woman 
+with long brown wavy hair 
+tied up in a high ponytail. 
+She has bright brown eyes, 
+rosy cheeks, and a slight 
+smile on her face. She is 
+wearing a purple top and a 
+blue denim jacket.]
+Long-context
+[<Instruction-1>, 
+{image1}, convert to a 
+palette segmentation map]
+[<Instruction-1>,  
+<Instruction-2>, 
+{image2}, generate a 
+portrait photography of the 
+girl.]
+[<Instruction-1>,  
+<Instruction-2>, 
+<Instruction-3>, 
+{image3}, convert to a line 
+art drawing.]
+[{image}, under the blue 
+sky, a few white clouds 
+float leisurely, and a red 
+sun radiates warmth. A 
+seedling emerges from the 
+soil, its two tender leaves 
+fluttering in the wind, full 
+of vitality.]
+[<Instruction-1>, {image1}, 
+a small tree grows upright, its 
+green leaves swaying in the 
+breeze, displaying exuberant 
+vitality]
+[<Instruction-1>,  
+<Instruction-2>, 
+{image2}, a large, leafy 
+tree stands lush and 
+green, providing shade 
+to the earth.]
+[<Instruction-1>,  
+<Instruction-2>, 
+<Instruction-3>, 
+{image3}, a fruitful tree 
+with lush branches and 
+leaves is laden with golden 
+fruits, heralding the joy of 
+harvest.]
+Figure 23: Sample data for training multi-turn and long-context generation task.
+trollable generation, and a group of character design images for ID preservation. The same is true
+for editing tasks, one or more additional exemplar images are necessary to specify the expected vi-
+sual elements in the editing area. For example, a reference image can be interpreted as the target
+image style appearance, face identity, etc. Therefore, we prepare training data for multi-reference
+generation and reference-guided editing. Examples of training data are shown in Fig. 22.
+B.8.1
+MULTI-REFERENCE GENERATION
+Multi-condition generation. In controllable generation, overlaying different types of conditions is
+usually necessary to control the different visual aspects of generated images. Similar to the process
+in appendix B.3, canny edge maps, depth maps, color maps, grayscale images, contours, scribbles,
+doodles, and pose keypoints are included for multi-condition generation. To make it possible to
+composite objects in different conditions, we use object segmentation to assign each area with a
+different condition.
+Series Generation. It has been widely studied how to generate images about one consistent visual
+element, like the portrait of a specific figure, pictures with the same styles, etc. Usually, tuning a
+themed tuner (e.g., LoRA) (Hu et al., 2022) with few images is the primary option. However, we are
+aiming to teach our model to understand and follow the rules lying behind image series. We collect
+image groups through image clustering. During the training phase, we randomly sample one image
+in the cluster as a target and 3 to 8 images as input images.
+B.8.2
+REFERENCE-GUIDED EDITING
+Style and face are two typical editing tasks benefiting from additional reference image inputs, pro-
+viding supplementary visual information of the target images.
+Style reference editing. To construct the training data, we extend the data of style editing (ap-
+pendix B.4.2) by assigning an additional style reference image for each edit-target image pair. Ref-
+erence images are randomly selected from other styled images within the same style category.
+Face reference editing. We use image pairs of misaligned facial data (appendix B.4.1) for face
+reference editing. We pick one of the two images as reference image while another as target image.
+Therefore, the target and reference image are the same person but slightly different. The edit image
+is derived from target image by erasing the face area to avoid any spoilers.
+B.9
+MULTI-TURN AND LONG-CONTEXT GENERATION
+Multi-turn editing refers to the process of obtaining the final image from an input image through mul-
+tiple independent instruction-based editing, which poses significant challenges in both the model’s
+30
+Technical Report
+Text-guided Generation
+Low-level Visual Analysis
+Controllable Generation
+Repainting
+Reference Generation
+Semantic Editing
+Element Editing
+Long Context Learning
+Layers Editing
+Global
+Local
+Global
+Local
+Figure 24: The overview of benchmark distribution. “Global” and “Local” refer to editing or
+generating based on the entire image, and editing or generating based on specific local areas of the
+image, respectively.
+Table 3: The comparison between ACE benchmark and existing benchmarks.
+Benchmark
+Real Image?
+Generated Image?
+Multi-turn?
+Regional?
+Tasks
+Data Scale
+MagicBrush
+Y
+N
+Y
+Y
+-
+1588
+Emu Edit
+Y
+N
+N
+N
+8
+3589
+ACE
+Y
+Y
+Y
+Y
+31
+12000
+precise understanding of instructions and the control over image quality in every round. Further, the
+long-context generation process aims to leverage the contextual information provided in each round
+of interactions to construct a long sequence, thereby generating images that align with the intended
+directives. The generated images reference multiple images and their corresponding instruction
+information from previous interactions, capturing the user’s genuine intent within the interaction
+framework, and allowing for more precise image editing.
+The data construction consists of two parts: (i) Homogenous content-based condition unit: this
+involves employing a pair data collection strategy to obtain various clusters from a large-scale
+database, as shown in Sec. 3.1, where each cluster contains images paired with their respective
+captions and instruction generated in pairs. During training, we select one image from any chosen
+cluster as the starting point and build a multiple rounds data chain using its caption or instruction,
+predicting the final image as the endpoint of the chain. (ii) Task-based condition unit: we treat all the
+previously mentioned single-image tasks as individual turns within the task and randomly sample
+them to form a complete multiple precursor unit that guides the final image generation.
+C
+BENCHMARK DETAILS
+Previous methods have proposed benchmarks to evaluate model performance for image editing, with
+notable examples including MagicBrush (Zhang et al., 2023a) and Emu Edit (Sheynin et al., 2024).
+MagicBrush has 1,588 samples, which includes 1,053 single-turn and 535 multi-turn instances, and
+primarily comes from MS-COCO (Lin et al., 2014). Emu Edit first defines 8 different categories of
+potential image editing operations and constructs the instructions by human annotators. The main
+issues with the above methods are insufficient coverage of tasks and generally poor data quality.
+31
+Technical Report
+Table 4: The multi-stage training details for ACE.
+Stage
+Model
+Capacity
+Train Data
+Scale
+Visual Sequence
+Length
+Max Image
+Number
+Training
+Steps
+Batch
+Size
+Instruction Align
+0.6B
+0.7 Billion
+1024
+1
+900K
+800
+Instruction Align
+0.6B
+0.7 Billion
+1024
+9
+100K
+400
+Aesthetic Improvement
+0.6B
+50 million
+1024
+9
+500K
+400
+Aesthetic Improvement
+0.6B
+50 million
+4096
+9
+100K
+960
+Change the image style of {image} to match {image1} 
+Instruction: 
+{image}
+{image1}
+{image}
+{image1}
+Apply the style of {image} to {image1} 
+Instruction: 
+Change the cloth in {image} to the one in {image1} 
+Instruction: 
+According to the cloth of {image}, do editing on {image1} 
+Instruction: 
+{image}
+{image1}
+{image}
+{image1}
+Figure 25: The effectiveness of Image Indicator Embeddings. Model follows the image indicators
+in instructions to distinguish the source and reference images.
+ACE builds a benchmark comprising 12,000 samples, covering more than 31 tasks while accom-
+modating 5900 real images and 6100 generated images. In addition, ACE benchmark supports both
+regional editing and multi-turn editing tasks. The specific statistics are shown in the Fig. 24, and
+the comparison with other benchmarks is presented in the Tab. 3.
+D
+IMPLEMENTATION DETAILS
+We employ the T5 language model as the text encoder and DiT-XL/2 (Peebles & Xie, 2023) as
+the base network architecture. The model capacity is nearly 0.6B and the parameters are partly
+initialized by PixArt-α (Chen et al., 2023a). The maximum length of the text token sequence is set
+to 120. We freeze VAE and T5 modules, utilizing AdamW (Loshchilov & Hutter, 2018) optimizer
+to train the DiT module with a weight decay of 5e-4 and a learning rate of 2e-5. All experiments are
+conducted in A800.
+A multi-stage training strategy is employed to progressively enhance the aesthetic quality and in-
+crease the generalizability of model. The training details are presented in Tab. 4. First, we train the
+instruction-following capability on single-image tasks using 0.7 billion data points, with the number
+of single image tokens limited to 1024. Next, we expand the tasks to include multiple-image scenar-
+ios. After learning the instruction alignment, we utilize high-aesthetic data to enhance the model’s
+aesthetics and extend the max image token number to 4096 for generating higher-resolution image.
+E
+MORE EXPERIMENTS
+Design of Image Indicator Embeddings. We test the effectiveness of Image Indicator Embeddings
+by adjusting the order of input images. As we can see in Fig. 25, the model always understands
+which image is the source image and which is the reference following the image indicators in the
+32
+Technical Report
+Table 5: Results on Emu Edit benchmark. ACE shows comparable performance to its baselines.
+Method
+CLIPdir↑
+CLIPout↑
+L1↓
+CLIPimg↑
+DINO↑
+InstructPix2Pix (Brooks et al., 2023)
+0.0739
+0.2681
+0.1240
+0.8508
+0.7647
+MagicBrush (Zhang et al., 2023a)
+0.0831
+0.2701
+0.0995
+0.8664
+0.7927
+Emu Edit (Sheynin et al., 2024)
+0.1073
+0.2791
+0.0893
+0.8743
+0.8398
+UltraEdit (Zhao et al., 2024)
+0.0888
+0.2783
+0.0532
+0.8814
+0.8524
+CosXL (StabilityAI, 2024)
+0.0901
+0.2775
+0.0940
+0.8686
+0.8340
+ACE (Ours)
+0.0855
+0.2746
+0.0761
+0.8952
+0.8620
+Table 6: Quantitative results for Facial Editing tasks on ACE benchmark. † indicates that InstanID
+requires an additional landmark as a condition, while other methods do not.
+Method
+Face Similarity
+Effective Score
+InstantID† Wang et al. (2024b)
+84.08
+0.96
+CosXL StabilityAI (2024)
+66.49
+0.37
+UltraEdit Zhao et al. (2024)
+62.91
+0.16
+IP-Adapter Ye et al. (2023)
+66.51
+0.31
+FaceChain Liu et al. (2023b)
+65.46
+0.42
+ACE (Ours)
+70.07
+0.67
+Table 7: Quantitative results for Local Text Render tasks on ACE benchmark.
+Method
+Edit Distance
+Sentence Accuracy
+UDiffText (Zhao & Lian, 2024)
+0.6827
+0.4110
+AnyText (Tuo et al., 2023)
+0.6035
+0.3313
+ACE (Ours)
+0.8211
+0.5767
+instruction. This means textual instructions and images are implicitly associated via the design of
+Image Indicator Embeddings.
+Emu Edit Benchmark. We also conduct a comparison on Emu Edit benchmark (Sheynin et al.,
+2024). It includes 3,589 examples of 8 tasks: background alteration, comprehensive image changes,
+style alteration, object removal, object addition, localized modifications, color/texture alterations,
+and text editing. This benchmark measures the similarity between output and input images and the
+provided captions. We calculate the L1 distance, CLIP similarity, and DINO similarity between the
+generated image and input image, together with the CLIP text-image direction similarity measuring
+agreement between the change in captions and the change in images, and CLIP similarity between
+the generated image and output caption. We use the code adapted from the MagicBrush evalua-
+tion code and models of CLIP ViT-B/32 and DINO ViT-S/16. As shown in Tab. 5, ACE achieves
+comparable performance to its baselines.
+Facial Editing. When evaluating the face identity preservation ability, we designed a Face Similar-
+ity (FS) metric to measure the consistency of faces between generated images and original images.
+We first detect the face region using MTCNN (Zhang et al., 2016b), then extract face embeddings
+with the ArcFace (Deng et al., 2019a) algorithm. The cosine similarity between normalized em-
+beddings is calculated as the face similarity score. The images generated by MagicBrush and In-
+structPix2Pix exhibit excessive similarity to the original images, thus metrics for these two methods
+are not computed. We observed a non-linear growth in the Face Similarity score. To analyze this,
+we extracted facial features from over 5 million data points in MS1M V3 (Deng et al., 2019b) and
+grouped them into clusters based on their face id. We then calculated the pairwise similarity within
+each cluster, resulting in a mean of mean = 0.5258 and a standard deviation of std = 0.1765.
+Due to the large standard deviation, we further analyzed the percentage of samples with scores
+above 0.3493(mean −std) that met the instructions to evaluate the Effective Score(ES) of facial ID
+persistence.
+33
+Technical Report
+L1 Loss
+Load 
+ControlNet
+Apply 
+ControlNet
+Canny
+CLIP Text 
+Encode
+VAE Decode
+K-sampler
+Load Model
+Load LoRA
+SAM
+VAE Encode
+Set Mask
+Trigger 
+words
+“<workflow> 
+ballon {image}”
+Workflow
+Figure 26: The pipeline of workflow distillation.
+<workflow> 
+cloud/felt/ballon 
+{image}
+Instruction 
+<workflow> 
+ballon/cyberpunk/clay 
+{image}
+Source Image
+Result Images
+Figure 27: The results visualization of workflow distillation.
+Our model significantly outperforms other methods in the absence of facial landmark information,
+with improvements of 3.56% and 25% in the FS and ES metrics as shown in Tab. 6. Although
+our model (0.6B) demonstrates inferior performance on metrics compared to InstantID (2.6B), it is
+important to highlight that InstantID utilizes an additional facial landmark as a conditioning factor.
+Moreover, as indicated by the results of prompt-following and image quality assessments in Tab. 2,
+our model shows a highly competitive performance overall.
+Local Text Render. To adequately evaluate the performance of text editing, we provide the quan-
+titative analysis of our method with two SOTA text render methods, i.e., UDiffText, and Anytext,
+on the local text render task of ACE benchmark. Each generated text line is cropped according to
+the specific position and fed into an OCR model to obtain predicted results. As described in Any-
+text, we calculate the Sentence Accuracy and the Normalized Edit Distance for each method. The
+former metric evaluates the sentence-level accuracy and the latter metric evaluates the char-level
+precision. From Tab. 7 we can observe that our ACE outperforms the other two methods, achieving
+performance gains of 14% and 16% in terms of Normalized Edit Distance and Sentence Accuracy,
+respectively. This demonstrates our superior text rendering capability.
+34
+Technical Report
+1-st round
+2-nd round
+3-rd round
+4-th round
+5-th round
+History dialogue
+Q1:
+A1: Received. Image id is 
+938cc8c4f525.
+Q2: Change 
+the hair 
+color in 
+@938cc8c4
+f525 to pink
+A2: The 
+generated 
+image id is 
+42c7c8ff52e6
+A3: The 
+generated 
+image id is 
+5a2a4396fa3d
+Q3: Given the
+edited image @ 
+42c7c8ff52e6 and
+mask, let her wear
+golden necklace.
+A4: The 
+generated 
+image id is 
+b74edf638e0f
+Q4: let the
+girl in @ 
+5a2a4396
+fa3d smile
+A5: The 
+generated 
+image id is 
+39fb79bf8afd
+Q5: change
+the style of @ 
+b74edf638e0f
+to watercolor
+painting
+Figure 28: The multi-turn conversation pipeline of our chat bot application.
+Figure 29: The user interface of the chat bot application built with Gradio.
+F
+APPLICATION
+F.1
+WORKFLOW DISTILLATION
+There are many excellent workflows assembling LoRAs, ControlNets, and T2I models on open-
+source platforms, which enable users to achieve certain results. To show the capability and compati-
+bility of ACE, we collect several outstanding workflows to obtain their result images for distillation.
+We train ACE with the inputs and corresponding outputs of these workflows, as well as a fixed
+special trigger instruction, as illustrated at Fig. 26. Our model acquires similar abilities of these
+workflows, as shown in Fig. 27, which demonstrates the great potential of ACE.
+F.2
+CHAT BOT
+Leveraging our diffusion model, we build a chat bot application to achieve chat-based image gener-
+ation and editing. Rather than a cumbersome visual agent pipeline, our chat bot supports all image
+creation requests with only one model serving as the backend, hence achieving significant efficiency
+improvement compared with visual agents. We depict a multi-turn conversation sample in 28 and
+35
+Technical Report
+illustrate the user interface in Fig. 29. We could command the model to create any desired image by
+chatting with it using natural language. The overall system can be formulated as
+Aj = ChatBot(H<j, Qj),
+(6)
+where Aj denotes the j-th round output of chat bot, Qj represents the j-th round user request,
+and H<j = {(Q1, A1), (Q2, A2), ..., (Qj−1, Aj−1)} represents the history of dialogue before j-th
+round. By introducing the history dialogue information into the current conversation, our model
+excels at understanding complex user requests, therefore achieving better prompt following ability.
+G
+MORE VISUALIZATION
+In Fig. 30, and Fig. 31, we present the visualization results of ACE in low-level visual analysis.
+The Fig. 32, Fig. 33, and Fig. 34 are the visualization of controllable generation. The visualization
+results of repainting are depicted in Fig. 35. Semantic editing tasks such as general editing, facial
+editing, and style editing are illustrated in Fig. 36, Fig. 37, Fig. 38. The visualization results of
+elements editing including text editing, and object editing are shown in Fig. 39, and Fig. 40. In
+Fig. 41, we present the visualization results of layer decouple and layer fusion. The visualization of
+reference generation can be found at Fig. 42 and that of multi-turn and long-context generation are
+present in Fig. 43. ACE demonstrates proficient instruction following, high-quality generation, and
+versatility across different tasks.
+H
+DISCUSSION
+Societal Impacts.
+From a positive perspective, the intelligent generation and editing of images can provide artists and
+designers with innovative tools to inspire new concepts, enhance creativity and artistic expression
+in images, lower the barriers to artistic creation, and reduce the labor-intensive manual processes
+involved. Additionally, the method can serve various industries. In the field of education and train-
+ing, they can be used to create supplementary teaching materials, such as illustrations for picture
+books, enhancing students’ learning experiences and improving communication and understanding
+in lessons. In business environments, companies can utilize the method to generate marketing mate-
+rials and product designs, thereby increasing production efficiency and creative output. The positive
+impacts of these technologies offer new possibilities for creativity, educational quality, and business
+efficiency, making it worthwhile for us to actively explore and apply them.
+New technologies not only bring new opportunities but also come with challenges. Firstly, issues
+related to copyright and authorship are prominent, potentially infringing upon the rights of orig-
+inal works and leading to legal disputes. Secondly, false information generated by models may
+exacerbate the spread of rumors, undermining public trust in information. Lastly, the inherent bi-
+ases and stereotypes present in generated content can challenge societal values and moral standards.
+Therefore, while we acknowledge the conveniences and innovations offered by these technologies,
+it is imperative to carefully consider and effectively manage these negative impacts to ensure the
+sustainability of technological development and uphold social responsibility.
+Limitations.
+First, our approach offers a unified framework for existing editing tasks. For specific tasks such as
+text-to-image generation, the aesthetic quality of our generated results lags behind that of state-of-
+the-art generative models like Midjourney and FLUX. These models have achieved breakthroughs
+by focusing on a single task of generating images from text prompts. In contrast, our model supports
+a broader range of input types and handles a wider variety of tasks, such as performing diverse edits
+under open-ended instructions. Additionally, training on higher-quality data and using a larger-scale
+model could help bridge this gap.
+Second, the model for instruction editing needs to accurately capture the user’s actual intent. In our
+framework, we utilize a fixed encoder-decoder language model to encode text instructions. However,
+as user instructions become more complex and diverse, the difficulty of interpreting these instruc-
+tions also increases. Furthermore, the current model is unable to handle multiple intents or tasks
+from a single instruction simultaneously and requires intent decomposition.
+36
+Technical Report
+Third, we support the input of multiple images and multiple instructions to construct long contex-
+tual information for generation. On one hand, it is inevitable that, due to limited hardware resources,
+training and inference with multiple images become increasingly challenging as the number of to-
+kens increases. On the other hand, excessively long contextual inputs pose a significant challenge
+for the model, as the forgetting of historical information during the process may lead to biases in the
+final generated results.
+Future Work.
+We try to illustrate some existing constraints of the model in limitations, which can serve as direc-
+tions for our future work. Firstly, the phenomenon of scaling laws has been demonstrated in the NLP
+field, indicating that further exploration of scaling laws in complex generation tasks is warranted.
+We will focus on two main approaches: on one hand, we will work on expanding high-quality data,
+which includes improving data quality, incorporating more complex tasks, and enhancing the preci-
+sion of instructional data; on the other hand, we will directly increase the model architecture’s scale
+to enhance its general generative capabilities. Secondly, we aim to introduce LLMs or MLLMs
+to accurately capture the intentions of users at the instruction level, leveraging their robust general
+understanding of language and images. This involves two specific objectives: firstly, to enhance the
+model’s ability to generalize from input text instructions to match single-task or multi-task contexts;
+and secondly, to improve the understanding of input images that are to be edited, thereby assisting
+subsequent instruction operations and ensuring the accuracy and diversity of the generated content.
+Finally, it is essential to explore the long-sequence modeling of multi-modal data comprising mul-
+tiple rounds of image and text interactions. We will engage in continuous contemplation regarding
+how to ensure that the historical context of image-text pairs is truly beneficial, similar to the func-
+tionality of chatGPT-like language models.
+37
+Technical Report
+Instruction 
+Conduct a segmentation 
+task on {image}.
+Image 
+Segmentation
+Input Image
+Output Image
+Instruction 
+Set off with the segmenta-
+tion of {image}
+Input Image
+Output Image
+Produce a depth map for 
+{image} please.
+Depth 
+Estimation
+I need a depth map created 
+from {image}.
+Can you help distinguish 
+the poses of the figures in 
+{image}?
+Human-pose 
+Estimation
+Can you provide insight 
+into the pose of the person 
+presented in {image}?
+Adapt {image} into a mosaic 
+representation.
+Can we get a mosaic version 
+of {image}?
+Image 
+Grayscale
+Can you transform {image} 
+into a black and white one?
+Could you adjust {image} to 
+be black and white?
+Do segmentation on mask of 
+{image}.
+Execute segmentation on 
+mask in {image}.
+Can you decipher the depth 
+map from the portion of 
+{image} highlighted by 
+mask?
+Generate the depthied 
+depiction of the specified 
+area in {image} as indicated 
+by mask.
+Manipulate {image} to 
+include mosaics in the 
+sections specified by the 
+mask.
+Image 
+Mosaic
+Incorporate a mosaic into 
+the {image}, specifically in 
+the mask regions.
+Would you mind converting 
+the mask section of the 
+{image} into a monochrome 
+hue while keeping the rest 
+as it is?
+Could you please transform 
+the mask area of the 
+{image} into grayscale, 
+whilst leaving the rest as 
+per original?
+Figure 30: The ACE’s generated visualization of image segmentation, depth estimation, human-pose
+estimation, image mosaic, and image grayscale in low-level visual analysis.
+38
+Technical Report
+Get the edge-enhanced 
+result for {image}.
+Edge 
+Detection
+Conduct an edge detection 
+operation on {image}.
+Would you be able to make 
+a contour picture from 
+{image} for me?
+I'd like you to develop a 
+contour image based on 
+{image}.
+Undertake a reduction 
+procedure on the quality of 
+{image}.
+Image 
+Degradation
+Implement a degradation 
+process on {image} to 
+decrease its quality.
+Generate a scribble of 
+{image}, please.
+Scribble 
+Extraction
+Please illustrate {image} in 
+a scribble style.
+Instruction 
+Input Image
+Output Image
+Instruction 
+Input Image
+Output Image
+The mask region in {image} 
+needs to be degraded.
+Aim the image degradation 
+process at the mask area of 
+the {image}.
+I need the result of edge 
+detection for the mask regi-
+on in {image}
+Generate the edge detection 
+map from the mask section 
+of the {image}.
+I need your assistance in 
+creating a contour of the 
+designated area in the 
+{image}, based on the given 
+mask.
+Contour 
+Extraction
+Can we generate a contour 
+dependent on the area 
+highlighted by mask in the 
+prescribed {image}?
+Please derive a local scri-
+bble of the {image} refer-
+encing the given  mask.
+Could you assist me in 
+creating a scribble using the 
+mask from the specified 
+image {image}?'
+Figure 31: The ACE’s generated visualization of image degradation, edge extraction, contour ex-
+traction, and scribble extraction in low-level visual analysis.
+39
+Technical Report
+Instruction 
+Based on the primitives 
+from {image}, synthesize a 
+real image that fits the 
+c o n t e x t a n d d e t a i l s 
+provided in "a charming 
+girl, long black straight 
+hair, sky background, in 
+yuumei style, realistic 
+portrait".
+Segmentation-based
+Generation
+Input Image
+Output Image
+Instruction 
+"rugged man wearing 
+aviator sunglasses on deep 
+r e d 
+b a c k g r o u n d " , 
+Transforming {image}
+Input Image
+Output Image
+Could you use the depth 
+map {image} and the text 
+caption "a young elf-like 
+character with pointed ears, 
+green eyes, and blonde hair, 
+adorned in a red and brown 
+outfit with green accents. A 
+bokeh effect with green hues 
+and hints of light reflecting 
+through foliage" to create a 
+corresponding graphic 
+image?
+Depth-based
+Generation
+Create character reference 
+illustrations of Oliver, an 
+adventurous 8-year-old, has 
+tousled brown, wind-blown, 
+outdoor lifestyle, hazel eyes, 
+freckles. Oliver wears, worn 
+green adventurer, vest", 
+Could you bring to life an 
+image using the depth map 
+{image}?
+Could you please help 
+translate this posture 
+schema {image} into a 
+colored image based on the 
+context I provided "dwarf 
+character dungeons & 
+dragons with blue eyes, 
+long barb and mustache, 
+total body"?
+Pose-based
+Generation
+I'm hoping to turn this pose 
+guide {image} into a full 
+color image with your help, 
+using my description 
+provided in the "a cartoon-
+style eagle dressed in a 
+black leather jacket, round 
+sunglasses, a feathered 
+chest piece, and accesso-
+rized with a necklace and 
+earrings".
+Transform and generate an 
+image using mosaic {image} 
+and "Osamu Tezuka middle 
+aged astro man" description
+Mosaic-based
+Generation
+A woman representing the 
+herb lavender, photore-
+alistic, beautiful, detailed, 
+Could you bring back the 
+integrity of this mosaic art 
+{image} by transforming it 
+into its original photog-
+raph?
+Grayscale-based
+Generation
+Can you make this {image} 
+colorful as per the "retrofu-
+turism exploration on 
+mars"?
+“Futuristic robotic astron-
+aut floating, dynamic 
+posture, with a sense of des-
+ign, cartoon style, cartoon 
+astronaut, cartoon propor-
+tions, anime aesthetics, 
+with ultra fine textures. 3D, 
+black background", Please 
+transform this grayscale 
+{image} into full color.
+Following the segmentation 
+outcome in mask of {image}, 
+develop a real-life image 
+using the explanatory note 
+in "water-colour, dreamy, 
+stuido ghibli, art nouveau”.
+“Character design sheet of a 
+asian woman, round face, 
+round spectacles, messy 
+cute hair, freckles, small 
+nose. white background", 
+Develop a detailed image 
+from the image segmen-
+tation represented by mask 
+of {image}.
+A cartoon dinosaur, likely a 
+Tyrannosaurus Rex, dresse-
+d in a white astronaut suit, 
+set against a backdrop of 
+outer space. The dinosaur is 
+colored in vibrant shades of 
+orange, with a lighter shade 
+on its underbelly. Please 
+restore the region of the 
+photo highlighted by mask 
+using the information from 
+the depth map {image}.
+"A close-up illustration of a 
+penguin wearing large, 
+orange sunglasses. The 
+sunglasses have a thick, 
+orange frame and dark blue 
+lenses that reflect the 
+penguin's surroundings.", 
+Utilizing the depth map 
+{image}, I'd like you to 
+reestablish the local zones 
+as indicated in mask.
+A whimsical, steampunk-
+inspired goldfish, a fascin-
+ating fusion of transparent 
+glass and gleaming metal, 
+reveals an intricate network 
+of gears, pipes, and wires, 
+hinting at a complex intern-
+al mechanism.  Would you 
+be able to eliminate the 
+mosaic in areas indicated 
+by mask on {image} to un-
+cover the underlying image 
+part.
+Several wooden balconies 
+adorn the exterior of the 
+treehouse, each lined with 
+potted plants and small 
+windows.", Recover the 
+image {image} by taking 
+away the mosaic on the 
+mask area.
+Make the mask part of my 
+{image} to be color proce-
+ssed based on the notes ‘ a 
+whimsical, steampunk-
+inspired airship, seemingly 
+cobbled together from 
+various salvaged parts. 
+It\'s a vibrant orange and 
+white, with exposed pipes, 
+gears, and wires adding to 
+its ramshackle charm’.
+The chimpanzee is wearing 
+a yellow astronaut helmet, 
+and its head and shoulders 
+are visible. The chim-
+panzee's fur is black and its 
+eyes are brown. Its mouth is 
+slightly open, and its teeth 
+are visible. Kindly apply 
+color to the mask portion of 
+the {image}, while the rest 
+of it stays in grayscale.
+Figure 32: The ACE’s generated visualization of segmentation-based, depth-based, pose-based,
+mosaic-based, and grayscale-based generation in controllable generation.
+40
+Technical Report
+Take the edge conscious 
+{image} and the written 
+guideline "cat wearing 
+colorful shirt, brown eyes, 
+bright brown eyes, chibi, 
+d e t a i l e d f u r , h i g h 
+resolution, 4k, soft fur" and 
+produce a realistic image.
+Edge-based
+Generation
+"Create a cybernetic monkey 
+character positioned at a 
+45-degree angle, existing 
+within the vast expanse of 
+the universe. The monkey 
+wears a sleek yellow-
+trimmed suit adorned with 
+futuristic elements and one 
+earring in the ear.", Craft a 
+g e n u i n e 
+i m a g e 
+b y 
+l e v e r a g i n g t h e e d g e 
+representations in {image}.
+“Card captor sakura", 
+Please instruct on creating 
+an equivalent image of the 
+doodle {image}.
+Doole-based
+Generation
+"A young man with glowing 
+eyes, hair in a pony tail, 
+epic pose, holding a blue 
+flame Katana, GLOWING 
+samurai armor, in the 
+mountains, painterly style", 
+Create an image that 
+accurately represents the 
+doodle depicted in  {image}.
+An artistic illustration of a 
+woman in a bright red 
+jacket and black shorts 
+stands prominently in front 
+of a semi-transparent wall. 
+Behind her, there are gym 
+e q u i p m e n t a n d w h a t 
+appears to be the silhouette 
+of a tennis court. For the 
+contour {image}, create a 
+suitable matching image.
+Please follow the desc-
+ription "a 3D digital art 
+style image of an animated 
+child character, showing a 
+alien child in a space 
+suit.His expression was 
+friendly, and his eyes 
+showed curiosity and 
+excitement". Process the 
+contour map {image} and 
+output the appropriate 
+image.
+"Handsome boy, age 20 
+years old, chest and gluteal 
+muscles developed, six pack 
+abs, white sports shorts, 
+smile, short hair, less chest 
+hair, white sports shoes, 
+sitting on the grass", 
+Eliminate noise interference 
+in {image} and maximize 
+the crispness to obtain 
+superior high-definition 
+quality.
+Degradation-based
+Generation
+Adhere to "Ultra clear, high 
+resolution, high detail, 
+Chinese style, Ancient 
+Chinese, face view, long 
+black hair, brown eyes, 
+frontal, horizontal Angle, 
+facing camera, outdoor, 
+street, serious, upper body" 
+to clean the noise from 
+{image} and develop a 
+clearer visual.
+Instruction 
+Input Image
+Output Image
+Instruction 
+Input Image
+Output Image
+The head of the robot 
+mimics a large, white, 
+cartoon-like animal with a 
+s i m p l e s m i l i n g f a c e , 
+featuring large expressive 
+eyes and minimal design 
+features like a cute nose and 
+a small triangle shape for 
+the mouth.", Interpret the 
+aspects of the mask region 
+in the {image} into an 
+authentic image
+Rebuild a lifelike image by 
+using the edges of {image} 
+under the guidance of the 
+mask.
+Create a regional image 
+from the doodle {image}, 
+based around the text 
+descriptor "A bright blue, 
+anthropomorphic frog is 
+depicted with a large, 
+expressive eye and several 
+smaller protrusions on its 
+skin. " marked by the mask.
+Please provide me with 
+instructions on how to 
+regenerate a portion of the 
+doodle {image} that matches 
+with the description "A 
+young girl with brown hair 
+wearing an orange hoodie." 
+from the masked area 
+mask.
+The horse stands against a 
+gradient background that 
+ranges from light to dark, 
+emphasizing the contrast of 
+the horse's colors. The 
+b a c k g r o u n d c o u l d b e 
+interpreted as either the 
+light of day or the darkness 
+of night, depending on the 
+viewpoint of the observer", 
+Denoise the mask segment 
+in the {image} to improve 
+clarity.
+The dragon is yellow with 
+orange accents, featuring 
+spikes along its back and 
+spikes on each cheek. Its 
+eyes are large and bright 
+b l u e , a d d i n g t o i t s 
+expression of contentment. 
+Execute high resolution 
+refinement on the mask 
+area of the {image}.
+The vehicle is a futuristic 
+concept with a sleek, 
+rounded design, featuring 
+multiple rotors for lift and 
+propulsion. Its exterior is 
+primarily an iridescent 
+orange, with details that 
+suggest advanced materials 
+a n d t e c h n o l o g y . B y 
+amalgamating the contour 
+image {image} we can 
+produce a localized image 
+in the mask mask area.
+Using the specified mask 
+region and taking "a 
+charming, whimsical stone 
+house, seemingly plucked 
+from a fairytale. The house 
+is constructed from large, 
+unevenly shaped, light 
+brown stones" as the 
+reference, create an image 
+partial corresponding to the 
+{image} contour.
+"A cute little brown and 
+white dog with erect ears 
+and playful mouth. He's 
+enjoying his coffee and 
+looks like he's enjoying it." , 
+p l e a s e 
+c r e a t e 
+t h e 
+corresponding local image 
+i n t h e { i m a g e } d r a f t 
+according to the area 
+indicated by mask.
+Scribble-based
+Generation
+“A robotic monster by 
+Edmund McMillen", Could 
+you please generate the 
+image that corresponds to 
+the given scribble {image}?
+Contour-based
+Generation
+Figure 33: The ACE’s generated visualization of degradation-based, edge-based, doodle-based,
+contour-based, and scribble-based generation in controllable generation.
+41
+Technical Report
+Instruction 
+Input Image
+Output Image
+Instruction 
+Input Image
+Output Image
+Per your specifications in 
+the mask, assist me in 
+generating a region-specific 
+image from the scribble 
+{image} that ties back to the 
+"a whimsical, cartoon-style 
+treehouse nestled within the 
+branches of a large, leafy 
+tree. The treehouse itself is 
+a multi-level structure, 
+seemingly built into the 
+trunk of the tree".
+Generate a beautiful image 
+based on {image}, mask, 
+and "a cartoon dinosaur 
+astronaut standing in a 
+spaceship interior. The 
+dinosaur is orange with a 
+lighter underbelly, large, 
+expressive eyes, and a row 
+of small, sharp teeth. It has 
+a spiky crest running down 
+its head and a long, 
+segmented tail".
+Scribble-based
+Generation
+Figure 34: The ACE’s generated visualization in scribble-based controllable generation.
+Instruction 
+Ensure to overhaul the 
+p a r t s o f t h e { i m a g e } 
+indicated by the mask.
+Unconditional
+Inpainting
+Input Image
+Output Image
+Instruction 
+Take the necessary steps to 
+repaint the area in {image} 
+marked out by the mask.
+Input Image
+Output Image
+Refashion the mask portion 
+of {image} in accordance 
+with "A raw pork chop, 
+generously seasoned with 
+salt, pepper, and fresh 
+rosemary, takes center stage 
+in this close-up shot. The 
+meat, a pale pink with 
+streaks of white fat, rests on 
+a sheet of white parchment 
+paper."
+Test-Guided 
+Inpainting
+Overlay the mask area of 
+{image} with new paint, 
+based on “On the white 
+table, there is a white plate 
+with a white cup filled with 
+coffee. The coffee has 
+beautiful latte art.”
+Could the {image} be 
+widened within the space 
+designated by mask, while 
+retaining the original?
+Outpainting
+In the mask area, we need 
+to broaden {image} based on 
+the guidelines within "pink 
+rose in the sun".
+Figure 35: The ACE’s generated visualization of repainting.
+Instruction 
+replace the green leaves 
+in the dog's mouth with 
+brighter maple leaves and 
+adjust the dog's posture 
+to a sitting position.
+General Editing
+Input Image
+Output Image
+Instruction 
+change the color of the tiger 
+to white, change the tiger's 
+posture to walking in the 
+water, and change the 
+background to green plants 
+and a pond.
+Input Image
+Output Image
+adjust the porcupine's 
+posture to a sitting position, 
+turn its head to the left, 
+slightly open its mouth, as 
+if it is eating
+change the color of the 
+garment from pink to white 
+and the model's hair color 
+from brown to blonde.
+add an identical shoe next 
+to the existing one, ensuring 
+both shoes face the same 
+direction.
+A b r o w n L a b r a d o r 
+Retriever puppy is seated 
+sideways on a white surface 
+against a solid orange 
+background. The puppy 
+wears a blue collar with 
+black accents, which stands 
+out against its brown fur.
+a pink macaroon or similar 
+dessert with a red filling, 
+s u r r o u n d e d b y f r e s h 
+raspberries. The top of the 
+dessert is garnished with a 
+fresh raspberry. The dessert 
+is placed on a white 
+background which has a 
+b l u r r e d b a c k g r o u n d 
+suggesting other desserts or 
+decorations may be out of 
+focus.
+A smiley brown bull cartoon 
+character with silver horns, 
+who seems to be happily 
+shouting or roaring through 
+a red megaphone. The left 
+hand is holding a large red 
+heart-shaped balloon. The 
+character gives a sense of 
+cuteness and friendliness.
+Figure 36: The ACE’s generated visualization of general editing in semantic editing.
+42
+Technical Report
+Instruction 
+Maintain the same face in 
+{image}, you need to revert 
+the background to a clear 
+indoor or shaded setting, 
+using bright lights and 
+increasing contrast. The 
+clothing can be adjusted 
+back to a large ruffled white 
+g a r m e n t o r j a c k e t , 
+maintaining its original 
+style.
+Input Image
+Output Image
+Instruction 
+Restyle the characters from 
+{image} according to "the 
+woman has straight, light 
+brown hair with a side 
+part, which is swept away 
+from her face. She is 
+wearing a white top with 
+cut-out details, and her 
+makeup appears more 
+natural." and make sure 
+their facial attributes 
+remain the same.
+Input Image
+Output Image
+You need to change the 
+background color from pink 
+elements and stairs or step 
+p a t t e r n s t o a b l u r r y 
+b a c k g r o u n d w i t h a 
+repeating pattern. Remove 
+the shadows and restore the 
+soft glow atmosphere. Also, 
+adjust the background color 
+back to blue.The faces in the 
+two images are the same, 
+usually changing their pose.
+Modify the {image} as per the 
+"has her hair flowing more 
+dynamically, suggesting 
+movement or a breeze, and 
+the background has more 
+defined greenery, creating a 
+natural and serene setting. 
+The light is more diffuse and 
+the color tones are rich, which 
+adds to the realistic feel of the 
+scene." while preserving 
+facial identity.
+Replace the long-sleeved 
+blouse with a high neckline 
+featuring a pattern of red 
+chains against a pale 
+background with a sleeveless 
+top with lace detailing at the 
+straps. Additionally, 
+ the 
+large hoop earrings and 
+textured clutch purse should 
+be replaced with a broad 
+smile.
+Facial Attributes
+Preservation
+Correspond the composition 
+of {image} with another 
+style taking into account the 
+"The girl has a light blue, 
+long-sleeved shirt with a 
+floral pattern, which seems 
+comfortable and casual. 
+The setting is outdoors, 
+with greenery softly in the 
+background." but keeping 
+the facial aspects constant.
+Decrease light on the well-
+lit side to create appropriate 
+shadows. Conceal some 
+parts of the shoulder and 
+arm. Also, adjust the stripe 
+pattern on the collar edge. 
+The faces in the two images 
+are the same, usually 
+changing their pose.
+Keep the same facial feature 
+in {image}, change the 
+woman's clothing from a 
+white jacket to a white 
+turtleneck sweater and 
+adjust her posture so that 
+she is pulling the collar of 
+the sweater with both 
+hands. Other aspects, such 
+as background, hairstyle, 
+facial expression, etc., 
+remain unchanged.
+Transform the faces of the 
+character in {image} to 
+capture genuine smiles.
+Adjust the expressions of 
+the character in {image} to 
+reflect natural, friendly 
+smiles.
+The person appears to be 
+w e a r i n g m o r e s u b t l e 
+makeup to enhance his 
+facial features. The skin 
+appears to be smoother, 
+with possibly a touch of 
+foundation to even out the 
+c o m p l e x i o n . A l i g h t 
+application of blush might 
+have been used to give a 
+healthy glow to the cheeks. 
+The person in {image} is 
+wearing makeup. The 
+makeup enhances the lips, 
+making them appear fuller 
+a n d m o r e v i v i d . T h e 
+eyebrows are neatly shaped 
+with color added, while the 
+skin looks smoother and 
+perhaps given a lighter tone 
+f r o m 
+t h e 
+m a k e u p 
+application.
+Add natural beards to the 
+characters in the {image}.
+Facial Attributes
+Transformation
+Generate natural facial 
+hair for the character in the 
+{image}.
+The character's hair color 
+appear as vibrant pink, 
+with the same styled bun 
+and loose tendrils framing 
+her face. The character 
+continues to wear the same 
+clothes and accessories. The 
+makeup remains largely 
+u n c h a n g e d , f o c u s i n g 
+attention on her facial 
+features. 
+The woman's hair has 
+transformed to a deep 
+purple hue, with a more 
+pronounced wave similar to 
+that in the left image. The 
+length and style appear to 
+be the same as the left 
+image. The overall effect is 
+still soft and ethereal, but 
+distinctly different in the 
+hair color.
+Keep the facial features of 
+the character in {image}, 
+based on “change the 
+background be solid pink. 
+Turn the character's shirt 
+b l a c k , c h a n g e t h e i r 
+hairstyle to short hair, and 
+make their gaze more 
+determined.”
+Keep the same facial feature 
+in {image}, Transform the 
+girl's outfit into a formal 
+dress with suspenders, 
+spread her hair out, and 
+hold a large bouquet of red 
+roses in her hand. The 
+overall lighting becomes 
+dim, creating a sense of 
+atmosphere
+Figure 37: The ACE’s generated visualization of facial editing in semantic editing.
+43
+Technical Report
+Instruction 
+Input Image
+Output Image
+Instruction 
+Input Image
+Output Image
+Could you please make 
+{image} 3D cartoon.
+3D
+Make {image} a Pixar 
+Animation.
+Change the style of {image} 
+to paper cut craft.
+Paper Art
+Convert {image} into a 
+paper cutting.
+Transform {image} into 
+pencil painting.
+Drawing
+Give {image} a one line 
+drawing look
+Change {image} to match 
+Low poly style.
+Change {image} to match 8-
+bit pixel art style
+Re-style {image} to 
+risograph ISO format
+Make {image} in ink render 
+style
+Apply felt doll style to 
+{image}.
+Fabrics
+Generate a quilted art style 
+image using the {image}  
+content.
+Animation Studios
+Create a new image of Walt 
+Disney Animation referring 
+to {image}.
+Adjust the {image} to 
+capture the essence of 
+Ghibli Studio's style.
+Materials
+Make {image} a picture 
+made of stained glass
+Make {image} in Play-Doh 
+clay style
+Could you please make 
+{image} an Impressionism 
+painting.
+Let {image} be in the style of 
+Fauvism.
+Schools of Painting
+Special Effects
+Figure 38: The ACE’s generated visualization of style editing in semantic editing.
+44
+Technical Report
+Instruction 
+O n 
+t h e 
+{ i m a g e } , 
+superimpose the text "L A 
+K E" according to the 
+area identified by the 
+mask
+Text Render
+Input Image
+Output Image
+Instruction 
+Put the text "C A R D" at 
+the position marked by 
+mask in the {image}
+Input Image
+Output Image
+Embed the text "E V E R" in 
+the {image} at the location 
+indicated by mask
+By using the mask as a 
+guide, you can position text 
+"R P G" on {image}
+Stamp text "F R I D A Y" 
+into the {image}, as defined 
+by the mask coordinates
+In the image {image}, 
+position the text "F o o d" 
+according to the guidance of 
+the mask
+text "S T R O N G" should 
+be applied to the {image} at 
+the position marked by 
+mask
+ add white text 'U F E S' 
+near the center of the image.
+The mask is to be used as a 
+marker to incorporate the 
+text "D A N G E R O U S" 
+into the {image}
+Rub out any text found in 
+the mask sector of the 
+{image}.
+Text Remove
+Obliterate the text from the 
+specified mask slice of the 
+{image}
+Scrub out every text snippet 
+from {image}
+Eradicate all text on 
+{image}
+Aim to remove any textual 
+element in {image}
+Let's make the {image} 
+completely devoid of any 
+text
+Vacate the text from the 
+identified mask spot on the 
+{image}.
+Obliterate the text in the 
+mask in the {image} image
+add the light brown text 'N 
+V Z' at the bottom right of 
+the picture
+Figure 39: The ACE’s generated visualization of text editing in element editing.
+45
+Technical Report
+Instruction 
+Clean up the cocktails on 
+the table in {image}.
+Object Removal
+Input Image
+Output Image
+Instruction 
+Remove the dog in this 
+{image}, ensuring a smooth 
+edit.
+Input Image
+Output Image
+Discard the contents of the 
+mask area from {image}.
+Wipe the mask part clean in 
+{image}.
+Add robot to the provided 
+{image} with a natural 
+appearance.
+Object Addition
+Add butterfly to the {image}, 
+keeping the look consistent.
+Could you insert cardboard 
+box into the {image}, per the 
+mask?
+Embed plant into {image}, 
+ensuring it fits within 
+mask.
+Figure 40: The ACE’s generated visualization of object editing in element editing.
+Layer Decouple
+Input Image
+Output Background Image
+Layer Fusion
+Input Image
+Output Image
+Input Image
+Output Image
+Output Foreground Image
+Input Image
+Output Background Image
+Output Foreground Image
+Figure 41: The ACE’s generated visualization of layer decouple and layer fusion in layer editing.
+46
+Technical Report
+Multiple Reference Images 
+Instruction 
+Output Image
+Virtual Tryon
+Face Swap
+Style Reference Editing
+Series Generation
+{image}{image1}{image2}
+{image3}, The photo shows 
+a young woman with fair 
+skin and dark hair styled 
+with bangs. She is wearing 
+a gray sweater vest with a 
+blue and white trim over a 
+light blue collared shirt. 
+The sweater vest has a 
+large, abstract, blue design 
+on the front. Looking 
+directly at the camera, selfie
+Multi-Control Generation
+{image}{image1}{image2}
+{image3}, A serene image of 
+a person walking along a 
+sandy beach, framed by 
+warm sunset lighting and 
+silhouetted foliage, with a 
+beautiful sun setting over a 
+calm ocean horizon. 
+{image}{image1}{image2}
+{image3}, This is a red 
+women's coat with a large 
+lapel design and a black 
+button placket on the front. 
+The coat has a pocket on 
+each side and a simple cuff 
+design. The picture is 
+paired with a white 
+turtleneck sweater and a 
+brown chain bag.
+image}{image1}{image2}
+{image3}, A yellow knitted 
+pear with big eyes and a 
+smiling mouth. It has a 
+thin twig for a nose, topped 
+with a green leaf. It stands 
+on a gray surface, its small 
+hands spread out 
+cheerfully.
+Reference Image
+Output Image
+Output Image
+Source Image
+Reference Image
+Source Image
+Figure 42: The ACE’s generated visualization of multi-reference generation and reference-guided
+editing.
+47
+Technical Report
+Output Turn-1 Image
+A young man with curly 
+hair looks directly at the 
+camera with a serious 
+expression. He wears round 
+eyeglasses that reflect the 
+light. He is dressed in a 
+plaid shirt against a blue 
+background, and lighting 
+effects on his face add a 
+touch of drama.
+Multi-turn Generation
+Change the person's 
+expression from serious 
+to surprised, with the 
+mouth open and eyes 
+wide of {image}.
+Change background 
+to white in {image}.
+Instruction-1 
+Instruction-2 
+Output Turn-2 Image
+Instruction-3 
+Remove the glasses in 
+{image}.
+Output Turn-3 Image
+Instruction-4 
+Output Turn-4 Image
+Make {image} anime 
+style.
+Instruction-5
+Output Turn-5 Image
+Add red text "S H O 
+C K" to the {image}.
+Instruction-6
+Output Turn-6 Image
+Output Turn-1 Image
+Replace the grassy ground 
+with a vibrant autumn 
+forest, with trees showcasing 
+bright yellow and orange 
+leaves, creating a more 
+colorful scene in {image}
+Add a hat on dog in 
+{image}
+Input Image 
+Output Turn-2 Image
+Instruction-2 
+Output Turn-3 Image
+Output Turn-1 Image
+A cartoon character wearing 
+a helmet and armor in hand 
+drawn line style, lying on 
+the ground, looking sad.
+Change {image} from 
+a lying position to a 
+standing position and 
+add a sword to it.
+The character is 
+drinking a large glass 
+of wine in {image}
+Instruction-1 
+Instruction-2 
+Output Turn-2 Image
+Instruction-3 
+Output Turn-3 Image
+Instruction-1 
+Output Turn-1 Image
+Add snow 
+to the peak 
+in {image}
+Increase the 
+clouds in the 
+sky in {image}
+Input Image 
+Output Turn-2 Image
+Instruction-2 
+Output Turn-3 Image
+Instruction-1 
+Turn into night 
+and starry sky 
+in {image}
+Instruction-3 
+Long-context Generation
+Output Turn-1 Image
+Replace the background 
+with a white desktop 
+and a gold-rimmed 
+mirror, and place the 
+t i s s u e b o x o n t h e 
+desktop. in {image}
+Transform the scene into 
+a cozy living room with 
+soft, warm lighting. Add 
+a plush, velvet sofa in a 
+deep emerald green. The 
+tissue box now sits on a 
+mahogany coffee table, 
+surrounded by a few 
+scented candles and a 
+small potted fern.
+Input Image 
+Output Turn-2 Image
+Instruction-2 
+Output Turn-3 Image
+Instruction-1 
+Output Turn-1 Image
+C h a n g e 
+{ i m a g e } 
+from gray 
+t o l i g h t 
+green
+C h a n g e 
+{ i m a g e } 
+from light 
+green to 
+yellow
+Generated Image 
+Output Turn-2 Image
+Instruction-2 
+Output Turn-3 Image
+Instruction-1 
+Alter the portrait 
+to depict a cheerful 
+young woman with 
+f l o w i n g h a i r 
+instead of an old 
+man, making the 
+print more colorful 
+with green accents.
+Instruction-3 
+Output Turn-1 Image
+This image depicts a 
+y o u n g m a l e m o d e l 
+wearing a maroon leather 
+jacket, a white t-shirt, and 
+dark jeans. The model 
+showcasing the front of 
+the jacket.
+Change the {image} 
+viewpoint of the person 
+from the front to the 
+back, keeping other 
+content unchanged.
+Turn a little from 
+behind the back and 
+show the arm in 
+{image}
+Instruction-1 
+Instruction-2 
+Output Turn-2 Image
+Instruction-3 
+Output Turn-3 Image
+Figure 43: The ACE’s generated visualization of multi-turn and long-context generation.
+48

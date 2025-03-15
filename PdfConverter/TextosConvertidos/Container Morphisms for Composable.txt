@@ -1,0 +1,1066 @@
+arXiv:2407.16713v1  [cs.SE]  22 Jul 2024
+Container Morphisms for Composable
+Interactive Systems
+Andr´e Videla
+University of Strathclyde andre.videla@strath.ac.uk
+Abstract. This paper provides a mathematical framework for client-
+server communication that results in a modular and type-safe architec-
+ture. It is informed and motivated by the software engineering practice
+of developing server backends with a database layer and a frontend, all of
+which communicate with a notion of request/response. I make use of de-
+pendent types to ensure the request/response relation matches and show
+how this idea ﬁts in the broader context of containers and their mor-
+phisms. Using the category of containers and their monoidal products,
+I deﬁne monads on containers that mimic their functional programming
+counterparts, and using the Kleene star, I describe stateful protocols in
+the same system.
+Keywords: API · Dependent types · Category of containers · Databases
+· Lenses · HTTP webserver
+1
+Introduction
+There is a plethora of tools to write server backends (Ruby on Rails, Django,
+NodeJS), but those libraries do not draw from existing mathematical theories,
+such as the pi-calculus or other process calculi, and therefore, do not enjoy a
+common understanding driving their design. As a result, there is no overarching
+story around combining them together.
+Client
+Server
+Request
+Request
+Response
+Response
+Fig. 1: A binary client-server model,
+events read clockwise.
+To work towards an implementable
+theory that explains what they share
+and how their common parts enable
+them to be combined, I present a re-
+vised view of client-server communi-
+cation that I contrast with a more
+“traditional” view of client-server in-
+teractions, characterised by being bi-
+nary (ﬁg 1). Indeed, in the binary
+view , clients send requests and ex-
+pect matching responses from those
+requests. Dually, servers await requests and provide responses to the client. What
+this picture does not tell us is how those requests and responses get further pro-
+cessed by each end. The lack of treatment for subsequent processing of request
+or response renders the binary model fundamentally uncompositional. A compo-
+sitional framework should not only explain client-server communication but also
+handle hidden protocols within clients and servers, for example, a server calling
+another one as part of its core functionality.
+Mouse event
+Rendering
+HTTP request
+HTTP response
+SQL query
+SQL response
+UI
+Client
+Server
+Database
+Fig. 2: An illustration of my revised compositional client-server view. Each color
+represents a diﬀerent piece of software, each boundary between colors represents
+a protocol with messages and responses. The lifecycle of a single interaction can
+be read clockwise starting from the UI.
+Figure 2 shows a simpliﬁed example of the interaction model I explore here,
+where events emerge from a client, then are sent through multiple layers of
+software, and ﬁnally a response is produced. In this revised view of client-server
+communication, the focus is on the interface between multiple systems that com-
+municate via diﬀerent protocols. For a web application, the protocol is HTTP
+and the interface is a list of endpoints, traditionally called the “Application Pro-
+gramming Interface” or API. The server itself communicates with a database,
+the protocol is SQL, and the interface is the language of valid SQL queries.
+My claim is that containers and their morphisms [7] accurately describe
+multi-tier applications like the one pictured in Figure 2. Containers themselves
+describe the allowed request-response patterns between components. Morphisms
+between containers describe how requests at one layer are translated to requests
+at the next, and moreover how matching responses are translated back. We shall
+see how containers’ ability to express the dependency of allowed responses on
+requests means that we can not only construct rich APIs but also describe in
+detail the implementation of those APIs in terms of other APIs. We shall see how
+the structure of the category of containers plays an important role in guiding
+us toward reusable abstractions 4. I have implemented this framework in Idris,
+which means that anyone can compile and run those programs. To demonstrate
+the expressiveness of the framework I construct an example To-do list appli-
+cation in Section 3.1 and implement an API to write ﬁles in a contemporary
+operating system in Section 3.2. Additionally, category theory oﬀers the means
+to talk about Kleisli composition, monads, and comonads, which are primordial
+tools to compose eﬀectful programs.
+1.1
+Contributions
+My contributions are as follows:
+1. I provide a new interpretation of containers as APIs, or “process boundaries”,
+and their morphisms as API-transformers.
+2. I give a notion of session via the Kleene star on containers 14, and a notion
+of monadic computing 7.
+3. For the above structure, I give mechanised proofs for their properties. They
+are accessible via the Ó icon. For the proofs, I use Idris2 [13,14] not only be-
+cause it is an implementation of dependent type theory [23] but also because
+it provides bindings to common software libraries such as NodeJS, SQLite,
+and more.
+4. I employ this model by building a to-do app using the same deﬁnitions as the
+ones used for proofs. This approach results in a correct-by-construction run-
+ning executable with the expected functionality. As an example of a stateful
+API, I show how to replicate the interaction model of a ﬁlesystem.
+1.2
+Related Work
+The work by Hancock and Setzer [22] showed us how to do eﬀectful programming
+using containers and dependent types. Their approach centers on writing a pro-
+gram within a container, representing trees of potential interaction paths (what
+they call a “world”), rather than between containers. As we will see later 14,
+programs whose speciﬁcation is given by a container do occur, and Hancock and
+Setzer’s IO Trees could be used for that. However, they won’t be the focus of
+this work. Hancock and Hyvernat [21] worked on a category of interfaces be-
+tween processes but studied in the context of topology rather than application
+development.
+In the work from Abbot, Altenkirch, Ghani, and McBride [9,7,8], they use
+containers to describe data structures, and operations on those data structures.
+In it, containers are deﬁned by a set of shapes and a set of positions indexed
+by the shapes. I will use this terminology when referencing containers outside of
+the request/response semantics I present here.
+The mathematical tools used here are very similar to the ones used by the
+applied category theory community. This work ﬁts in the same family, however,
+the semantics are established in the software engineering practice of full-stack
+application development, rather than compositional game theory, machine learn-
+ing, or cybernetics. Bolt et al. employ the category of lawless lenses, for game
+theory [12] and Capucci et al. use it for cybernetics [15].
+request : Type
+response : request →Type
+(a) Our interpretation of the inter-
+face of an interactive system.
+response : Type
+request : response →Type
+(b) Spivak and Niu’s interpreta-
+tion of the interface for a dynami-
+cal system.
+Spivak and his team focus on the category Poly, the category of Polynomial
+Functors and natural transformations between them, which is equivalent to our
+category of containers. They also use it for cybernetics/dynamical systems [24]
+as well as machine learning [19].
+The biggest diﬀerence with their work on Poly lies in how we interpret con-
+tainers as a type for requests/responses. What they consider responses, I think
+of as requests and their notion of request is a notion of response here, the rela-
+tionship is ﬂipped.
+The container morphisms presented here have a structure very similar to
+lenses as data accessors for records. So much so that they could be conceptualised
+as dependent lenses, although they do not provide access to a data structure.
+Instead, these morphisms move between process boundaries, acting more like
+process accessors, that grant access to a program, rather than a data structure.
+The previous work related to the category of lenses [16] shows that lenses take
+part in software development as functional data accessors for databases [11] and
+data deﬁnitions [18,25,20]. This versatility suggests that we could reuse the data
+accessor aspect in this work, however, I will exclusively talk about processes and
+leave the integration for future work.
+The industry has produced a number of solutions to the problem described
+here. Among those, we count the OpenAPI standard [1], GraphQL [2], Type-
+spec [6], Protobuf [5], and more. These tools aim to simplify the task of writing
+client-server software by providing a unique source of truth and relying on code
+generation to provide implementations for both a client and a server. Similarly,
+libraries based on Object-Relational Mappings (ORMs 1), like Django [3] or
+GORM [4], oﬀer a way to unify the database model and the data structure
+of the program, removing the API barrier between the server code, and the
+database. These tools achieve a small part of this work, to ease the communi-
+cation between binary processes. However, they do not say anything about the
+software that ﬁts in between the interfaces they describe. What is more, because
+we do not have a formal deﬁnition of “interface” we cannot easily talk about the
+compatibility between those systems. A compositional framework ought to tell
+us in which way two interfaces are incompatible and what is missing to make
+them compatible.
+My goal here is to advance the state of the art by proposing a unifying the-
+ory that describes composed systems interfacing with each other using diﬀerent
+protocols. Additionally, this theory needs to be usable in the context of a pro-
+gramming language to write those systems, rather than purely describe them.
+2
+Containers & APIs
+The drive for this paper is the idea that containers are request/response pairs.
+These request/response pairs can be conceptualised as the Application Program-
+1 Object–relational mapping, Wikipedia:
+https://en.wikipedia.org/wiki/Object%E2%80%93relational mapping
+ming Interface2 (API) of a given program. An API gives you what a program
+can expect as inputs and what output to expect for a given input. For example,
+a C header ﬁle deﬁnes the API of a C library, a list of endpoints deﬁnes the
+API of a microservice, etc. In what follows, I introduce the primary tool for
+API description and manipulation: the category of containers. I will not pro-
+vide an introduction to category theory and will make use of functors, monads,
+comonads, and natural transformations3.
+2.1
+The category of containers
+Containers form a category, and their morphisms allow to map from one con-
+tainer to another, in the interpretation of containers as APIs, morphisms are
+API transformers.
+Deﬁnition 1 (Ó). A container consists of a type of requests, or queries a :
+Type and a type family of responses, or results a′ : a →Type.
+I write (x : a ⊲a′ x) to build the container with types a : Type and a′ :
+a →Type. When I use a built-in type without a binder like (String ⊲String)
+I mean that the second argument is not indexed by the ﬁrst, it is equivalent to
+(x : String ⊲String). I write Type for the category of types and functions.
+Deﬁnition 2 (Ó). Given two containers a ⊲a′, b ⊲b′, a container morphism
+f ⊳f ′ : a⊲a′ →b⊲b′ consists of a function f : a →b mapping requests to requests,
+and a family of functions f ′ : ∀(x : a).b′(f x) →a′ x mapping responses in the
+codomain to responses in the domain.
+Intuition. If the domain of the morphism is the ”surface-level” API and the
+codomain is the ”underlying” API, then a morphism converts surface-level re-
+quests to underlying API requests. Additionally, it converts responses from the
+underlying API back into responses that the surface-level API exposes.
+Because the second map of a morphism goes in the opposite direction as the
+ﬁrst, I refer to the map on requests as the forward part of the morphism, and the
+map on responses as the backward part of the morphism, a terminology borrowed
+from lenses. In the rest of the paper, I use the terms API transformer, container
+morphism, and lens, interchangeably, and follow the naming convention of the
+related work.
+We can develop the idea by studying an example. Let us imagine a web server
+with a client sending HTTP requests, and the server returning HTTP responses.
+We can deﬁne this API as the container:
+HTTP : Container
+HTTP = (r : HTTPRequest ⊲HTTPResponse r)
+2 What is an API? by IBM: https://www.ibm.com/topics/api
+3 Resources for learning category theory:https://github.com/prathyvsh/category-theory-resources
+The implementation details of HTTP itself do not matter, we’re only inter-
+ested in providing the input/output relation here.
+To implement such a server, we could provide a function (r : HTTPRequest⊲
+HTTPResponse r) but this would be a very monolithic architecture. Instead,
+we can see a server as a bidirectional program built of multiple layers, one of
+which could be a translation layer between HTTP request/response to database
+query/response. If we assume there is a container to describe the API of a
+database we could describe our server as a morphism:
+DB : Container
+DB = (q : SQLQuery ⊲SQLResponse q)
+Server : HTTP ⇒DB
+Server = . . .
+Giving the implementation of a container morphism in one go still leads to
+a monolithic architecture. Instead, we would like to build larger servers from
+smaller reusable components. For this, we use the composition of container mor-
+phisms.
+Deﬁnition 3 (Ó). Given two morphisms q1 ⊳r1 : a ⇒b and q2 ⊳r2 : b ⇒c,
+the composition of container morphisms (q1 ⊳r1); (q2 ⊳r2) is given by q2 ◦q1 ⊳
+λx.r1(x) ◦r2(q1(x))).
+Intuition. The main goal for composition is to translate requests from a surface-
+level API (a ⊲a′) down to an underlying API (c ⊲c′) through an intermediate
+layer (b ⊲b′). This is achieved by function composition of the forward map. But
+the system also needs to translate back responses from the underlying API into
+the surface-level responses. This is why we need to compose the backward map
+in reverse, starting from the underlying responses c′ we build responses back to
+the intermediate level b′ then back to a′.
+Remark. There are other valid notions of composition for containers, this one
+matches what we expect from our API-transformer semantics.
+Using composition we can check that our structure is a category. The main
+beneﬁt we get out of this is the insurance that the systems we build remain
+composable regardless of their complexity.
+Proposition 4 (Ó). Containers form a category. Objects are containers 1, mor-
+phisms are container morphisms 2, composition is given by morphism composi-
+tion 3, identity is given by the morphism (id ⊳id).
+Proof. Because a container morphism is essentially a pair of morphisms in Type
+and in Typeop the laws hold by inheriting the laws from the underlying category.
+When writing software, we often want to keep an internal representation of
+the data that we wish to work with. As an example, we can design a server archi-
+tecture that works with an internal API (x : InternalQuery⊲InternalResponse x)
+and build the software around it. Using the composition of container morphisms
+we can attach morphisms to either end of this internal API to obtain diﬀerent
+results, as we see in ﬁgure 4.
+CLI : (String ⊲String) ⇒Internal
+CLI = . . .
+WEB : HTTP ⇒Internal
+WEB = . . .
+CLIApp : (String ⊲String) ⇒DB
+CLIApp = CLI ; toQuery
+WEBApp : HTTP ⇒DB
+WEBApp = WEB; toQuery
+Fig. 4: Two applications with a reusable component toQuery : Internal ⇒DB
+and two diﬀerent translation layers converting from diﬀerent surface-level APIs
+The domain and codomain of morphisms CLI or WEB in ﬁgure 4 are not
+particularly realistic since they never fail. In reality, parsing an HTTP request, or
+a string, can result in failure. So the API transformers need to model a potential
+failing translation as well.
+2.2
+The Maybe Monad on containers
+Containers need to model the ability to fail or give partial results all while
+using total functions to remain within the realm of provably correct code. In
+the example of ﬁgure 4 the API transformer (String ⊲String) ⇒Internal
+has a forward map that converts requests of type String →InternalQuery.
+But it is unlikely that every possible string of characters produces a valid query.
+Instead, we would like to represent the fact that only some strings result in a
+valid message with the function String →Maybe InternalQuery. This suggests
+that the morphism CLI should have the type:
+CLI : (String ⊲String) ⇒(x : Maybe InternalQuery ⊲InternalResponse x)
+CLI = . . .
+However, this does not typecheck because the InternalResponse has type
+InternalQuery →Type but we are supplying it a value wrapped around a
+Maybe. To ﬁx this, we use the All unary relation on Maybe.
+Deﬁnition 5 (Ó).
+Given a container (q ⊲r), we deﬁne
+(m : Maybe q ⊲Allr m) as the MaybeAll map
+on containers. With All deﬁned as follows:
+∀(p : a →Type)
+All (Just x) 7→p x
+All Nothing 7→⊤
+Where ⊤is the terminal object in Type with constructor (). Using deﬁni-
+tion 5, we can write the type of the CLI ′ morphism as (String ⊲String) ⇒
+MaybeAll Internal.
+This starts to look like good old functional programming with a maybe
+monad [27]. In fact, it is a monad in the category of containers:
+Proposition 6 (Ó). MaybeAll is a functor in containers.
+Proof. Using deﬁnition 5 as the map on objects, we deﬁne the map on mor-
+phisms: (f ⊳f ′) 7→(map f ⊳mapAll f ′) Where map is the standard map from
+the Maybe type and mapAll is deﬁned as:
+mapAll : (∀x.p(f x) →q x) →(x : Maybe a) →Allp (map f x) →Allq x
+mapAll f ′ (Just x) v = f ′ v
+mapAll f ′ Nothing () = ()
+The proof is given in appendix A
+Proposition 7 (Ó). MaybeAll is a monad in Cont.
+Proof. We inherit the tools we need from the fact that Maybe is a monad in
+Type, with the unit morphism given by (Just⊳id) and the join by (join⊳id).
+By relying on the underlying Maybe monad we ensure unit behaves as an identity
+for join and that join is associative. The identity in the backward map is one
+thanks to pattern matching on the index.
+In the category of types and functions, we have that Maybe x ≈1 + x Natu-
+rally, one might ask whether this fact is also true in the category of containers.
+To check this, we ﬁrst need to deﬁne the coproduct on containers.
+Deﬁnition 8 (Ó).
+Given two containers (a ⊲a′) and (b ⊲b′), the
+coproduct is given by (x : a + b ⊲choice x).
+∀a′, b′.
+choice (inl x) 7→a′ x
+choice (inr x) 7→b′ x
+Intuition. The coproduct of two containers can be understood as building an
+API that accepts requests from either a or b and returns the corresponding
+answer. The choice eliminator computes the return type depending on what
+request was sent. If the request was of type a, then the response should be of
+type a′, and similarly with b. If the response was not dependent in this way we
+could be receiving responses of type b′ after having sent a request of type a. We
+want to avoid that.
+Equipped with the coproduct, we can ask if there is an equivalent to the
+isomorphism Maybe x ≈1 + x in Type. Indeed, there is if we deﬁne 1 in
+containers by (⊤⊲⊤):
+Proposition 9 (Ó). MaybeAll x is Isomorphic to 1 + x
+Proof. We need two isomorphisms, one for the forward part, and one for the
+backward part, the forward isomorphism is given by the known functional pro-
+gramming result that Maybe x ∼= Either ⊤x. For the backward part, we
+need to prove the isomorphism between ∀(m : Maybe x).Any x′ m and ∀(e :
+⊤+ x).choice ⊥x′ e. For the backward part, we need to pattern match on the
+index to ﬁnd out how the type changes. In the Just v/inr v case, the type is x′ v
+in both cases, when the index is Nothing/inl (), the type is ⊤in both cases.
+This indicates that our previous intuition about types and functions does
+translate to containers and their morphisms. Including features such as the di-
+agonal map, which collapses two identical choices into one.
+Deﬁnition 10 (Ó). The diagonal map a + a ⇒a is given by the morphism
+dia ⊳id where dia is the diagonal on the coproduct in Type.
+As usual, the identity in the backward part depends on the value of the index.
+This representation makes the following map easy to write:
+Deﬁnition 11 (Ó). MaybeU : MaybeAll 1 ⇒1 removes redundant MaybeAll
+And is deﬁned by composing the diagonal from deﬁnition 10 with the co-
+product isomorphism from proposition 9.
+Given a monad M, we can use Kleisli composition >=> : ∀a, b, c.(a →M b) →
+(b →M c) →(a →M c) as a combinator to sequence multiple monadic pro-
+grams. The following example shows the use of Kleisli composition with the
+MaybeAll monad to sequence two potentially failing morphisms.
+parse : (String ⊲String) ⇒MaybeAll HTTP
+parse = . . .
+router : HT T P ⇒MaybeAll Internal
+router = . . .
+system : (String ⊲String) ⇒MaybeAll Internal
+system = parse >=> router
+2.3
+Stateful Protocols via the Sequential Product
+Some APIs expect the client to send multiple requests in a given order. Such APIs
+are sometimes referred to as “stateful protocols”, and an instance of successfully
+engaging in one is a “session”.
+The sequential product, also known as the substitution product, describes an
+API that expects two queries, one after the other, and gives responses for each
+of them. We could imagine sending a pair, but if we did that, we could not
+choose what the second query should be depending on the ﬁrst. Capturing this
+dependency is at the core of the sequential product. I use Σ-types instead of
+existential quantiﬁcation to match the representation of the program in code.
+Subscript π1 and π2 are the projection functions from the Σ-type.
+Deﬁnition 12 (Ó). Given two containers (a ⊲a′) and (b ⊲b′), their sequential
+product >> is given by (x : Σ(y : a).a′ y →b ⊲Σ(z : a′ xπ1).b′ (xπ2 z)) .
+Intuition. Sequencing two APIs should create one that will expect two inputs
+in sequence and will provide both results at once. In the query part, we see
+that we expect a query of type a, but we also require a continuation of type
+a′ y →b that tells the system the follow-up query given a response to a. In
+the response, we send both results of each query, but because the second one
+depends on the ﬁrst, we return a Σ-type with the second response adjusted using
+the continuation in the query.
+To eﬀectively use sequential composition I introduce two maps to eliminate
+its neutral element 1 = (⊤⊲⊤), a container that will play a crucial role in
+section 17.
+Deﬁnition 13 (Ó). 1 is the neutral element for >> given by the maps
+UnitL : 1 >> x ⇒x
+UnitL = (π2 ⊳λx, y.((), y))
+UnitR : x >> 1 ⇒x
+UnitR = (π1 ⊳λx, y.(y, ()))
+For the proof that it is a monoidal product, refer to Spivak [26]. I will only
+use this as a combinator to build programs.
+An example of a stateful protocol is a ﬁle system with a ﬁle handle that needs
+to be accessed at ﬁrst and closed at the end of the interaction. If we think of
+Open, Close, and Write as standalone APIs to a ﬁlesystem, then a successful
+interaction with the system is a sequence of Open followed by Write and ended
+with Close: Open >> Write >> Close. We could even deﬁne a Read container
+and write Open >> (Write + Read) >> Close if we wanted to indicate that the
+API allows both reads and writes by using the coproduct 8 on containers.
+2.4
+Kleene Star for Repeated Requests
+We can represent a complete interaction with the ﬁlesystem by the composition
+of the three APIs Open >> Write >> Close in a way that is impossible to mis-
+use the underlying protocol. One odd thing about this approach is that, with this
+API, we are only allowed to do one thing: Write the ﬁle exactly once. If we want
+to write to it multiple times, or if we want to close the ﬁle handle immediately
+after opening it, we cannot, because it would be a breach of the API. What we
+really want is to write something like this: Open >> Write ∗>> Close where
+the postﬁx * is the Kleene star. The Kleene star operator on containers is a
+repeated version of the sequential product 12 and mimics the way it works in
+regular expressions, indicating 0 or more occurrences of a term strung together
+sequentially.
+Deﬁnition 14 (Ó). Given a container c = (a⊲a′) the Kleene star with type ∗:
+Container →Container is given using a data structure StarShp : Container →
+Type and a map StarPos : ∀c.StarShpc →Type as (x : StarShpc⊲StarPosc x)
+data StarShp : Container →T ype where
+Done : StarShpa⊲a′
+More : (x : a) →(a′ x →StarShpa⊲a′) →StarShpa⊲a′
+StarPos : ∀(a ⊲a′ : Container).StarShpa⊲a′ →T ype
+StarPos Done = ⊤
+StarPos (More req cont) = Σ(x : a′ req).StarPosa⊲a′(cont x)
+The Kleene star gives the choice of sending 0 API calls using Done or more
+requests by using More to add to the list of requests to send. We can build a
+smart constructor single : ∀(a ⊲a′ : Container).a →StarShpa⊲a′ that will
+wrap one layer of More around a value of type a and end the sequence with
+Done eﬀectively sending a single request: single x 7→More x Done.
+Proposition 15 (Ó). Kleene star is a functor.
+Proof. The map on objects is given by ∗: Container →Container. The map
+on morphisms is given by:
+map∗: a ⇒b →a∗⇒b∗
+map∗m = (x : mapShpm ⊲mapPosm x)
+Where, for all pairs of morphisms a, b, given a morphism (f ⊳f ′) : a ⇒b
+mapShp : StarShpa →StarShpb
+mapShp Done = Done
+mapShp (More x1 x2) = More(f x1)(mapShp ◦x2 ◦f ′
+x1)
+mapPos : ∀(x : StarShpa).StarPosb(mapShp x) →StarPosa
+mapPos (x = Done) ⊤= ⊤
+mapPos (x = More x1 x2) (y1, y2) = (f ′
+x1 y1, mapPosx2(f ′x1 y1)y2)
+To prove the functor preserves identities and composition we need to prove that
+both mapShp and mapPos preserves identities and composition. That is, the
+four equations hold:
+1. mapShpid = id
+2. mapPosid = id
+3. mapShpf;g = mapShpf; mapShpg
+4. mapPosf;g = mapPosf; mapPosg
+I prove each of these lemmas in appendix B.
+We have almost all the pieces to build large-scale systems compositionally,
+but how do we run them? That is the topic of the next section.
+2.5
+Clients as State, Servers as Costate
+A container morphism is not a complete program, it is a tool to compose dif-
+ferent systems with matching APIs at their boundaries, but their deﬁnition as
+pairs of maps does not explain how to turn them into executable programs. In
+particular they are not closed, their left and right boundary are still open to
+further composition.
+To close them, I borrow a technique that I learned from Jules Hedges in
+Open Games: Contexts, State, and Costate. The terminology itself is adapted
+from quantum computing [17].
+Deﬁnition 16 (Ó). A State-Lens is a morphism from 1 into a container (a⊲a′).
+It is isomorphic to a value of type a. State c ≜1 ⇒c
+state : a →1 ⇒(a ⊲a′)
+state x = (λ .x ⊳λ .⊤)
+value : 1 ⇒(a ⊲a′) →a
+value (f ⊳) = f ⊤
+Deﬁnition 17 (Ó). A Costate-Lens is a morphism from (a ⊲a′) into 1 and is
+isomorphic to a function (x : a) →a′x. Costate c ≜c ⇒1
+costate : ((x : a) →a′ x) →(a ⊲a′) ⇒1
+costate f = (λ .⊤, λx .f x)
+exec : (a ⊲a′) ⇒1 →(x : a) →a′ x
+exec ( ⊳f) x = f x ⊤
+Deﬁnition 18 (Ó). A Context for a lens (a ⊲a′) ⇒(b ⊲b′) is a pair a × ((x :
+b) →b′x), or equivalently, a state for (a ⊲a′) and a costate for (b ⊲b′).
+Intuition. The original intuition for containers as APIs is that a container
+(a ⊲a′) gives us the type signature of a system that takes requests of a and
+return responses a′. The deﬁnition of the Costate-Lens materialises this idea by
+turning it into a morphism. Similarly, for requests, if an API (a ⊲a′) accepts
+requests of type a, it should be that communicating with it requires producing
+values of type a.
+Once taken together, state and costate give us a way to run morphisms in
+the same way they are run in Open Games [12].
+run : (st : State(a ⊲a′)) →Costate (b ⊲b′) →(a ⊲a′) ⇒b →a′(value st)
+run st co m = exec(m; co)(value st)
+2.6
+IO and Side-Eﬀects
+We are now able to use our API transformers to extract programs using a state,
+costate, and contexts. But something is still missing. In everything I showed
+until now, I only ever described pure functions, but a tool like a database library
+will not expose a pure function as its API. Rather, it will perform side eﬀects,
+such as IO or exceptions. How to model eﬀectful programs is the topic of this
+section.
+Assuming a container for a database with API (q : DBQuery ⊲DBRes q), it
+is unlikely a library implementing it would be a pure function. Rather, it would
+be an eﬀectful one working in IO with type (q : DBQuery) →IO (DBRes q).
+If we were to model this stateful function as a container it would be the new
+container DBIO = (q : DBQuery ⊲IO (DBRes q)).
+As with the Maybe monad on containers, we can deﬁne a map on containers,
+lifting from monads on Type to comonads on containers. Let us ﬁrst see how to
+lift functors on Type to functors on containers:
+Deﬁnition 19 (Ó). Given a functor f : Type →Type, we deﬁne Lift, the
+map on containers from (q ⊲r) to (q ⊲f ◦r).
+Proposition 20 (Ó). Given a functor f : Type →Type, Lift f is an endo-
+functor in Cont. The map on objects is given by Lift f, the map on morphisms
+is given by: (g ⊳g′) 7→g ⊳map f ◦g′
+Proof. The proof follows from the fact that f is a functor, with the subtlety
+that the backward part of the morphism lives in Typeop, and that duality also
+preserves the functor laws.
+This construction matches the one given by Abou-Saleh et al. on monadic
+lenses [10]. Seeing it as a map on containers sheds light on an interesting fact
+about monadic programming in the category of lenses: Given a monad in Set,
+we obtain a comonad in Cont.
+Proposition 21 (Ó). Given a monad in Type (T : Type →Type, unit :
+∀a.a →T a, mult : ∀a.T (T a) →T a) with the appropriate laws, we build the
+endofunctor Lift T : Cont →Cont like above 20. The counit is given by the
+morphism (id ⊳unit) and the comultiplication by (id ⊳mult).
+Proof. Because only the backwards parts see any changes from Lift T , and it
+runs backward, the proof that counit and comult form a comonad follows from
+the fact that the dual of a monad is a comonad in the opposite category.
+Using the fact that Lift f is a functor, we can map a morphism HT T P ⇒
+DB, and into an eﬀectful program Lift IO HT T P ⇒Lift IO DB to interact
+with other eﬀectul APIs. The counit gives us a way to interface a stateful API
+with a pure one. For example, a test database that runs in memory could have
+a pure signature, but the rest of the program will still expect to run with an
+IO eﬀect, we can build the API transformer Lift IO DB ⇒DB to plug our
+program into a pure implementation of a database for testing purposes.
+Finally, one handy tool is that Lift f distributes around +, allowing us to
+combine eﬀectful computation with ones that provide a choice of API.
+Deﬁnition 22 (Ó). Given f : Type →Type an endofunctor, distrib+ :
+Lift f (a + b) ⇒Lift f a + Lift f b is given by the morphism id ⊳id.
+The backward part is a bit tricky because it is only an identity after we
+pattern match on its index. Because of the relationship between coproducts and
+the MaybeAll map, we deﬁne a similar distributivity map for it around Lift:
+Deﬁnition 23 (Ó). Given f : Type →Type an endofunctor, distribMaybe :
+Lift f (MaybeAll a) ⇒MaybeAll (Lift f a) is given by the morphism id ⊳id.
+Again the backward part is only an identity after pattern matching.
+Our last combinator allows to combine multiple costates sequentially using
+monadic sequencing.
+Deﬁnition 24 (Ó). For a given monad m : Type →Type, and two contain-
+ers a, b : Cont, we can run two eﬀectful costates m1 : Costate (Lift m a)
+and m2 : Costate (Lift m b) in sequence to obtain a combined eﬀectful API
+Costate(Lift m (a >> b)).
+The implementation is straightforward in its mechanised version.
+3
+Demo - Executing Interactive programs
+It remains to demonstrate that this model is not only useful for abstractly talking
+about properties of larger compositional systems, but also for their implementa-
+tion. To this end, I present two examples. First, a To-do app that communicates
+with a database, to show that the system is successfully compositional across
+multiple domains. Second, I implement the interface of a ﬁlesystem to show how
+stateful protocols can be described and run.
+3.1
+A Basic To-do App
+A to-do app is a tool to manage lists of actionable items. Operations include cre-
+ating a new item, marking an item as done and retrieving the list of all items. For
+space reasons, I will only show small relevant parts of the original source code. For
+the full source code, you can ﬁnd it here: https://andrevidela.com/aplas-code/SQL.html.
+The ﬁrst choice to make is the model of interaction. A real app would use an
+HTTP interface to expose the functionality of the application. For simplicity, I
+will use a command-line interface via a Read-Eval-Print Loop (REPL).
+repl : (String →IO String) →IO ⊤
+This type suggests that a program interacting with the REPL has the API
+(String ⊲String), I call this container CLI . The app handles 3 messages :
+Create, MarkDone, ListAll. As you can tell by their name, they allow the
+creation, update, and retrieval of todo items. Here is a data deﬁnition for it:
+data T odoCommand = Create String | MarkComplete ID | RetrieveAll
+For each message, we produce the type of responses. Except for RetrieveAll,
+all messages do not return any value. Instead, we will rely on eﬀect lifting to
+perform side-eﬀects for them.
+T odoResponse : T odoCommand →T ype
+T odoResponse RetrieveAll = Table T odoItem
+T odoResponse
+= ⊤
+Where Table is the type of SQL tables returned by SQL queries. These
+two types form the internal API of the app: App = (cmd : T odoCommand ⊲
+T odoResponse cmd).
+To implement the database, I use SQLite3 binders in Idris. The library has
+two methods of interactions: Commands, and queries. They are implemented
+with the functions runCmd : Cmd →IO ⊤and runQuery : (q : Query) →
+IO(Table q.type) respectively. These functions suggest a costate with an appro-
+priate container. For space and legibility reasons, I write IO instead of Lift IO:
+SQLCmd : Container
+SQLCmd = (Cmd ⊲⊤)
+execCmd : Costate(IO SQLCmd)
+execCmd = costate runCmd
+SQLQuery : Container
+SQLQuery = (q : Query ⊲Table q.type)
+execQry : Costate (IO SQLQuery)
+execQry = costate runQuery
+Each costate is combined with a coproduct to give the choice of the caller to
+interact with the database by supplying either a command or a query.
+execDB : Costate(IO (SQLCmd + SQLQuery))
+execDB = distrib+; (execCmd + execQuery); dia
+Where distrib+ distributes eﬀects across the coproduct 22 and dia is the di-
+agonal operator 10. We have all the interface pieces, now we need to imple-
+ment the morphisms to translate between one API to the next. This is done
+via two morphisms, one that I call parser but performs two operations, parse
+incoming requests but also print responses for the command line to show. The
+second, called toDB, converts internal messages into database commands and
+queries, and converts backs responses from the database into internal messages.
+parser : CLI ⇒MaybeAll App
+parser = parse ⊳print
+toDB : App ⇒(DBCmd + SQLQuery)
+toDB = . . .
+I elide the implementation of parse, print, and toDB since their details are
+not relevant to this example.
+It is worth noting that the mapping toDB is pure because, at this stage,
+we are only dealing with valid messages. Accordingly, all responses from the
+database will also be valid responses. Therefore, there is no need to concern
+ourselves with errors yet. It is only once we compose the API transformer with
+an eﬀectful database implementation that we start worrying about how to handle
+potential errors and eﬀects.
+With all those pieces, we can build the entire system by composing the parser,
+the message conversion, and the database execution.
+app : Costate(IO CLI)
+app = mapIO(parser); distribMaybe; mapMaybe(mapIO(toDB); execDB); MaybeU
+This makes use of composition 3, distributivity 23, the MaybeAll functor on
+containers 5, and the Lift functor 19. The extra piece at the end cleans up the
+bureaucracy brought on by MaybeAll.
+The result of this is app, an implementation of the entire pipeline from pars-
+ing to database queries, going via internal messages and a bespoke database
+interaction model.
+3.2
+A ﬁlesystem Session
+In section 2.3, I claimed that the sequential product describes sessions and that
+their type constrains the sequence of requests that need to be sent to constitute
+a valid session. The example I gave was the API for a ﬁlesystem with three
+diﬀerent messages for opening a ﬁle handle, one for writing to a ﬁle handle, and
+one for closing a ﬁle handle. I will now elaborate on this example here with some
+code snippets to show how it looks in practice with a real ﬁle API. The full
+source code can be seen here: https://andrevidela.com/aplas-code/fs.html.
+First, we need functions to perform the IO operations on the ﬁlesystem. I am
+going to rely on Idris’ built-in functionality:
+fPutStrLn : File →String →IO ⊤
+open : String →IO(FileError + ⊤)
+close : File →IO(FileError + ⊤)
+data OpenFile = MkOpen String
+data WriteFile = MkWrite String File
+data CloseFile = MkClose File
+With those, I implement the costate using the costate function 17 that acts
+as the interpreter of the previously deﬁned API.
+FS : Container →Container
+FS = Lift(IO ◦(FileError + ))
+writeMany : Costate(FS WriteC∗) = costate fPutStrLn
+openFile : Costate(FS OpenC) = costate open
+closeFile : Costate(FS CloseC) = costate close
+combined : Costate(FS (OpenC >> WriteC ∗>> CloseC))
+combined = seqM (seqM openFile writeMany) closeFile
+To run the program, we need to supply a valid input deﬁned by the type of
+the session.
+writeOnce, writeT wice, writeNone : StarShp WriteC
+writeNone = Done
+writeOnce = single(MkWrite file ”hello”)
+writeT wice = More(MkWrite file ”hello”)(λ .single (MkWrite file ”world”))
+We can embed any sequence of writes into a valid session by surrounding it
+with an opening and closing request. We turn it into a State using deﬁnition 16.
+mkSession : StarShp WriteC →State (OpenC >> WriteC ∗>> CloseC)
+mkSession writes = state(MkOpen ”append”, λfile.(writes, λ .MkClosefile)
+The pair of a state and costate forms a context that we can run. We run it
+using run 2.5.
+main : IO ⊤
+main = run (mkSession writeOnce) combined
+And as expected, we can run all sorts of sessions that are also valid, like
+writeNone and writeT wice written above, using the same runner.
+4
+Conclusion & Future work
+As I have shown in the two demos, using containers and their morphisms not only
+forms a compelling mathematical basis to study large compositional systems but
+also provides the programming infrastructure to build such systems.
+From here, I see three diﬀerent paths of further improvements. One could
+be to enhance the practical usability of the framework, build binders to more
+libraries, database systems, user interfaces, operating systems etc. Such that it
+becomes possible to build a broad range of programs, all the way from the TCP
+layer up to the GUI.
+Another path could be to drill down on one speciﬁc use-case and elucidate
+problems that the framework encounters and solutions it provides as a way to
+further both the theory and the practice of the tool. Uses cases I am interested
+in include compilers, machine learning, and video game development.
+Finally, the last axis of development would be to expand the theory with com-
+ponents from other systems. For example, developing a type theory for bidirec-
+tional systems, incorporating session types, or discussing the para-construction
+, all of which would contribute to making the research broader and compatible
+with other areas of research, such as cybernetics or categorical deep learning.
+4.1
+Acknowledgments.
+I would like to thank my colleagues from MSP who oﬀered deep and practical insight.
+In particular Bob, Fred, Guillaume, Sean who gave me precious feedback, Jules and
+Zanzi for encouraging me to write those ideas down, Shin-ya for teaching me how to
+think in categories, and the team at NPL for supporting my work both emotionally
+and ﬁnancially.
+References
+1. OpenAPI
+Speciﬁcation
+v3.1.0
+|
+Introduction,
+Deﬁnitions,
+&
+More,
+https://spec.openapis.org/oas/v3.1.0
+2. GraphQL. GraphQL Foundation (Oct 2021), https://graphql.org/
+3. Django.
+Django
+Software
+Foundation
+(May
+2024),
+https://www.djangoproject.com/
+4. GORM (Apr 2024), https://gorm.io/
+5. Protocol Buﬀers. Google (Mar 2024), https://protobuf.dev/
+6. Typespec. MIcrosoft (May 2024), https://typespec.io/
+7. Abbott,
+M.,
+Altenkirch,
+T.,
+Ghani,
+N.:
+Categories
+of
+Containers.
+In:
+Gordon,
+A.D.
+(ed.)
+Foundations
+of
+Software
+Science
+and
+Compu-
+tation
+Structures,
+vol.
+2620,
+pp.
+23–38.
+Springer
+Berlin
+Heidelberg,
+Berlin,
+Heidelberg
+(2003).
+https://doi.org/10.1007/3-540-36576-1_2,
+http://link.springer.com/10.1007/3-540-36576-1_2
+8. Abbott,
+M.,
+Altenkirch,
+T.,
+Ghani,
+N.:
+Containers:
+Construct-
+ing
+strictly
+positive
+types.
+Theoretical
+Computer
+Science
+342(1),
+3–27
+(Sep
+2005).
+https://doi.org/10.1016/j.tcs.2005.06.002,
+https://www.sciencedirect.com/science/article/pii/S0304397505003373
+9. Abbott, M., Altenkirch, T., Ghani, N., McBride, C.: Derivatives of Contain-
+ers. In: Goos, G., Hartmanis, J., van Leeuwen, J., Hofmann, M. (eds.) Typed
+Lambda Calculi and Applications, vol. 2701, pp. 16–30. Springer Berlin Hei-
+delberg, Berlin, Heidelberg (2003). https://doi.org/10.1007/3-540-44904-3_2,
+http://link.springer.com/10.1007/3-540-44904-3_2
+10. Abou-Saleh, F., Cheney, J., Gibbons, J., McKinna, J., Stevens, P.: Reﬂections
+on Monadic Lenses. In: Lindley, S., McBride, C., Trinder, P., Sannella, D. (eds.)
+A List of Successes That Can Change the World: Essays Dedicated to Philip
+Wadler on the Occasion of His 60th Birthday, pp. 1–31. Springer International
+Publishing,
+Cham
+(2016).
+https://doi.org/10.1007/978-3-319-30936-1_1,
+https://doi.org/10.1007/978-3-319-30936-1_1
+11. Bohannon,
+A.,
+Pierce,
+B.C.,
+Vaughan,
+J.A.:
+Relational
+lenses:
+A
+lan-
+guage
+for
+updatable
+views.
+In:
+Proceedings
+of
+the
+Twenty-Fifth
+ACM
+SIGMOD-SIGACT-SIGART
+Symposium
+on
+Principles
+of
+Database
+Sys-
+tems. pp. 338–347. PODS ’06, Association for Computing Machinery, New
+York,
+NY,
+USA
+(Jun
+2006).
+https://doi.org/10.1145/1142351.1142399,
+https://doi.org/10.1145/1142351.1142399
+12. Bolt,
+J.,
+Hedges,
+J.,
+Zahn,
+P.:
+Bayesian
+open
+games
+(Oct
+2019).
+https://doi.org/10.48550/arXiv.1910.03656,
+http://arxiv.org/abs/1910.03656
+13. Brady,
+E.:
+Idris,
+a
+general-purpose
+dependently
+typed
+programming
+lan-
+guage:
+Design
+and
+implementation.
+Journal
+of
+Functional
+Programming
+23(5),
+552–593
+(Sep
+2013).
+https://doi.org/10.1017/S095679681300018X,
+https://www.cambridge.org/core/journals/journal-of-functional-programming/article/idris-a-generalp
+14. Brady, E.: Idris 2: Quantitative Type Theory in Practice. arXiv:2104.00480 [cs]
+(Apr 2021), http://arxiv.org/abs/2104.00480
+15. Capucci, M., Gavranovi´c, B., Hedges, J., Rischel, E.F.: Towards Foundations
+of Categorical Cybernetics. Electronic Proceedings in Theoretical Computer
+Science 372, 235–248 (Nov 2022). https://doi.org/10.4204/EPTCS.372.17,
+http://arxiv.org/abs/2105.06332
+16. Clarke, B., Elkins, D., Gibbons, J., Loregian, F., Milewski, B., Pillmore,
+E.,
+Rom´an,
+M.:
+Profunctor
+Optics,
+a
+Categorical
+Update
+(Mar
+2022),
+http://arxiv.org/abs/2001.07488
+17. Coecke, B., Kissinger, A.: Picturing Quantum Processes. Cambridge University
+Press (Mar 2017)
+18. Edward
+A.
+Kmett:
+Lens
+library
+(May
+2024),
+https://hackage.haskell.org/package/lens-4.15.1
+19. Fong, B., Spivak, D.I., Tuy´eras, R.: Backprop as Functor: A compositional
+perspective on supervised learning. arXiv:1711.10455 [cs, math] (Nov 2017),
+http://arxiv.org/abs/1711.10455
+20. Foster, J.N., Greenwald, M.B., Moore, J.T., Pierce, B.C., Schmitt, A.: Com-
+binators for bidirectional tree transformations: A linguistic approach to the
+view-update problem. ACM Transactions
+on
+Programming
+Languages
+and
+Systems 29(3),
+17 (May 2007). https://doi.org/10.1145/1232420.1232424,
+https://dl.acm.org/doi/10.1145/1232420.1232424
+21. Hancock,
+P.,
+Hyvernat,
+P.:
+Programming
+interfaces
+and
+basic
+topol-
+ogy
+(May
+2009).
+https://doi.org/10.48550/arXiv.0905.4063,
+http://arxiv.org/abs/0905.4063
+22. Hancock, P., Setzer, A.: Interactive Programs in Dependent Type Theory. In:
+Goos, G., Hartmanis, J., van Leeuwen, J., Clote, P.G., Schwichtenberg, H.
+(eds.) Computer Science Logic, vol. 1862, pp. 317–331. Springer Berlin Heidel-
+berg, Berlin, Heidelberg (2000). https://doi.org/10.1007/3-540-44622-2_21,
+http://link.springer.com/10.1007/3-540-44622-2_21
+23. Martin-L¨of,
+P.:
+An
+Intuitionistic
+Theory
+of
+Types:
+Predicative
+Part.
+In:
+Studies
+in
+Logic
+and
+the
+Foundations
+of
+Mathematics,
+vol.
+80,
+pp.
+73–118.
+Elsevier
+(1975).
+https://doi.org/10.1016/S0049-237X(08)71945-1,
+https://linkinghub.elsevier.com/retrieve/pii/S0049237X08719451
+24. Niu, N., Spivak, D.I.: Polynomial Functors: A Mathematical Theory of Interaction
+(Dec 2023), topos.site/poly-book.pdf
+25. O’Connor, R.: Functor is to Lens as Applicative is to Biplate: Introducing Multi-
+plate (Jul 2011), http://arxiv.org/abs/1103.2841
+26. Spivak, D.I.: A reference for categorical structures on $\mathbf{Poly}$ (Apr 2022),
+http://arxiv.org/abs/2202.00534
+27. Wadler, P.: Monads for functional programming. In: Broy, M. (ed.) Pro-
+gram
+Design
+Calculi,
+vol.
+118,
+pp.
+233–264.
+Springer
+Berlin
+Heidelberg,
+Berlin,
+Heidelberg
+(1993).
+https://doi.org/10.1007/978-3-662-02880-3_8,
+http://link.springer.com/10.1007/978-3-662-02880-3_8
+A
+MaybeAll is a functor
+The functor is given by MaybeAll on objects and given a morphism (f ⊳f ′)
+the corresponding lifted morphism is given by mapMor(f ⊳f ′) = (map f ⊳
+mapAll f ′)
+Lemma 1. mapMor respects identity
+We want to prove that mapMor(id⊳id) = (map id⊳mapAll id) = (id⊳id).
+Because Maybe is a functor we have that map id ≡id. For mapAll id v x ≡x
+we need to proceed by case-analysis.
+– When v = Nothing in mapAll id Nothing () = ()
+– When v = Just v in mapAll id (Just v) w = id w = w
+Lemma 2. mapMor respects composition
+Given two morphisms (f⊳f ′) : (a⊲a′) ⇒(b⊲b′) and (g⊳g) : (b⊲b′) ⇒(c⊲c′)
+we want to prove that mapMor(g ⊳g′) ◦(mapMor(f ⊳f ′)) = mapMor((g ⊳
+g′) ◦(f ⊳f ′))
+By evaluating (g ⊳g′) ◦(f ⊳f ′) = (g ◦f ⊳λx.f ′ x ◦(g′ (f x))) we obtain the
+term (map(g ◦f) ⊳mapAll(λx.f ′ x ◦(g′ (f x)))).
+By expanding the deﬁnition of mapMor we obtain on the left side (map g ⊳
+mapAll g′) ◦(map f ⊳mapAll f ′) by deﬁnition of container morphism compo-
+sition we obtain (map g ◦map f ⊳λx.mapAll f ′ x ◦mapAll g′ (map f x))
+Because Maybe preserves identities, we have map g ◦map f ≡map (g ◦f).
+It is left to prove that ∀x, y.mapAll f ′ x(mapAll g′ (map f x))y) = (λz.f ′ z ◦
+(g′ (f z))) x y.
+We do this by case-analysis on x:
+– When x = Nothing then
+mapAll f ′ Nothing (mapAll g′ Nothing ())
+= mapAll f ′ Nothing ()
+= () = mapAll (λz.f ′ z ◦(g′ (f z))) Nothing ()
+– When x = Just v then
+mapAll f ′ (Just v)(mapAll g′ (Just (f v)) w)
+= mapAll f ′ (Just v)(g′ (fv) w)
+= f ′ v (g′ (f v) w)
+= mapAll (λz.f ′ z ◦(g′ (f z)))(Just v) w
+B
+Lemmas for Kleene as Functor
+Lemma 3 (mapShp preserves identities).
+∀(a : Container).∀(x : StarShp a).mapShpidx = x.
+Proof. We perform a proof by induction on x.
+– In the base case where x = Done we have mapidDone = Done, which com-
+pletes the proof.
+– In the inductive case where x = More x1 x2 then mapid(More x1 x2) eval-
+uates to More x1(λv.mapShpid(x2 v)). The ﬁrst argument is the same, the
+second is equal by induction mapShpid ◦x2 = x2.
+Lemma 4 (mapPos preserves identities).
+∀(a : Container).∀(x : StarShp a).∀(y : StarPos a x).mapPosid x y = y
+Proof. We perform a proof by induction on x
+– In the base case where x = Done then y = ⊤and mapPosidDone⊤evaluates
+to ⊤completing the proof.
+– In the inductive case where x = More x1 x2 then the goal becomes
+mapPosid(More x1 x2)(y1, y2) = (y1, y2), the left side evaluates to
+(y1, mapPosid y1 y2), which is identical to the goal by induction on (y1, y2).
+Lemma 5 (mapShp preserves composition).
+∀(a, b, c : Container)(f : a ⇒b)(g : b ⇒c).∀(x : StarShp a).mapShpg◦fx =
+mapShpg(mapShpf x)
+Proof. We deﬁne f = f1 ⊳f2, g = g1 ⊳g2 to refer to the forward and backward
+maps of f and g, then proceed by induction on x as above.
+– In the base case where x = Done then mapShpg◦fDone evaluates to Done
+completing the proof.
+– In the inductive case where x = More x1 x2 then we have:
+mapShpg◦f(More x1 x2)
+(By deﬁnition of f; g)
+≡mapShpg◦f⊳f ′◦g′ (More x1 x2)
+(By deﬁnition of mapShp)
+≡More(g(f(x1)))(mapShpg◦f ◦x2 ◦f ′
+x1 ◦g′
+f(x1))
+(By induction)
+≡More(g(f(x1)))(mapShpg ◦mapShpf ◦x2 ◦f ′
+x1 ◦g′
+f(x2))
+(By deﬁnition of mapShpg)
+≡mapShpg(More(f(x1))(mapShpf ◦x2 ◦f ′
+x1)
+(By deﬁnition of mapShpf)
+≡mapShpg(mapShpf(More x1 x2))
+Lemma 6 (mapPos preserves composition).
+∀(a, b, c : Container)(f : a ⇒b)(g : b ⇒c).
+∀(x : StarShp a).∀(y : StarPosg◦f(mapShpg◦f x)).mapPosg◦f y =
+mapPosg (mapPosf y)
+Proof. Like above, we perform the proof by induction on x.
+– In the base case where x = Done, then mapPosg◦f Done ⊤evaluates to ⊤
+and so does mapPosf Done (mapPosg Done ⊤) completing the proof.
+– In the inductive case where x = More x1 x2, then the goal becomes
+mapPosg◦f (More x1 x2) (y1, y2) =
+mapPosf(More x1 x2) (mapPosg(mapShpf(More x1 x2))(y1, y2))
+mapPosg⊳g′◦f⊳f ′(More x1 x2)(y1, y2)
+≡
+(By deﬁnition of g ⊳g′ ◦f ⊳f ′)
+mapPosg◦f⊳λx.f ′x◦(g′(fx))(More x1 x2)(y1, y2)
+≡
+(By deﬁnition of mapPosg◦f⊳λx.f ′x◦(g′(fx)))
+(f ′ y1 (g′ (f y1)), mapPosg◦f (x2 (f ′ y1(g′ (f y1)))) y2)
+≡
+(By induction on the second projection)
+(f ′ y1 (g′ (f y1)),mapPosf (x2 (f ′ x1 (g′ (f x1) y1)))
+(mapPosg (mapStarShpf (x2 (f ′ x1 (g′ (f x1) y1)))) y2))
+≡
+(By deﬁnition of mapPosf)
+mapPosf (More x1 x2)(g′ (f x1) y1,
+mapPosg (mapStarShpf(x2 (f x1 (g′ (f x1) y1))))y2)
+≡
+(By deﬁnition of mapPosg)
+mapPosf (More x1 x2)
+(mapPosg (More (f x1) (mapStarShpf ◦x2 ◦(f ′ x1)))))(y1, y2))
+≡
+(By deﬁnition of mapShpf)
+mapPosf (More x1 x2)(mapPosg (mapShpf(More x1 x2))(y1, y2))
