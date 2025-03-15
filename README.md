@@ -37,4 +37,37 @@ Com os testes feitos é possível notar que o hash por divisão apresentou menor
 
 # Como executar
 
-1.
+## 1. Usando os textos default
+
+No CMD, abra o diretorio da pasta WordFinder e rode o comando "java Main".
+
+O programa pedirá os documentos, portanto digite o diretorio dos textos convertidos: /Users/<seuUsuario>/Downloads/PdfConverter/TextosConvertidos
+
+Escolha a funçao Hash a ser usada.
+
+Digite a palavra que deseja buscar.
+
+Para parar a execução digite "sair".
+
+## 2. Usando textos novos
+
+Crie uma pasta que contenha todos os pdfs que deseja utilizar.
+
+Dentro da pasta PdfConverter/TextosConvertidos apague todos arquivos .txt
+
+Dentro da pasta PdfConverter rode o programa em python.
+
+De o diretrorio da nova pasta contendo os pdfs.
+
+O programa colocará todos os pdfs convertidos na pasta "TextosConvertidos".
+
+No CMD, abra o diretorio da pasta WordFinder e rode o comando "java Main".
+
+O programa pedirá os documentos, portanto digite o diretorio dos textos convertidos: /Users/<seuUsuario>/Downloads/PdfConverter/TextosConvertidos
+
+Escolha a funçao Hash a ser usada.
+
+Digite a palavra que deseja buscar.
+
+Para parar a execução digite "sair".
+
