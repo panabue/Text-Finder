@@ -31,3 +31,6 @@ Tempo de Busca: A palavra buscada foi “of”, foram 39291 milissegundos para o
 Consumo de Memória: 6.128 MB utilizados pelo sistema.
 Com os testes feitos é possível notar que o hash por divisão apresentou menor velocidade na indexação e busca. Como foi utilizado o método Trie, nota-se que houve um maior consumo de memória devido à sua estrutura.
 
+# Como executar
+
+1.
