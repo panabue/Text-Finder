@@ -26,9 +26,11 @@ Os artigos foram transformados em .txt antes de serem compactados. Na compactaç
 ## 4. Medição de Desempenho
 
 Utilizando a função currentTimeMillis() para tempo de indexação e busca. No cálculo relacionado ao consumo de memória foi utilizada a função getRuntime(). Obtivemos os seguintes resultados:
+
 Tempo de Indexação: 78945 milissegundos com o hash djb2 e 90851 milissegundos com o hash por divisão.
 Tempo de Busca: A palavra buscada foi “of”, foram 39291 milissegundos para o hash djb2 e 66903 milissegundos para o hash por divisão.
 Consumo de Memória: 6.128 MB utilizados pelo sistema.
+
 Com os testes feitos é possível notar que o hash por divisão apresentou menor velocidade na indexação e busca. Como foi utilizado o método Trie, nota-se que houve um maior consumo de memória devido à sua estrutura.
 
 # Como executar
